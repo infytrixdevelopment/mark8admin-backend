@@ -4,6 +4,7 @@ const router = express.Router();
 
 const { authenticateToken } = require('../middleware/auth');
 const userController = require('../controllers/userController');
+const userManagementController = require('../controllers/userManagementController');
 const dashboardController = require('../controllers/dashboardController');
 const accessController = require('../controllers/accessController');
 const brandController = require('../controllers/brandController');
@@ -14,10 +15,16 @@ const auditController = require('../controllers/auditController');
 router.use('/api/admin', authenticateToken);
 
 // ==================== USER ROUTES ====================
-// Get all users
-router.get('/api/admin/users', userController.getAllUsers);
+// Get all users (with search and pagination)
+router.get('/api/admin/users', userManagementController.getAllUsers);
 
-// Get specific user
+// Add new user
+router.post('/api/admin/users', userManagementController.addUser);
+
+// Update user status
+router.put('/api/admin/users/:userId/status', userManagementController.updateUserStatus);
+
+// Get specific user (original endpoint)
 router.get('/api/admin/users/:userId', userController.getUserById);
 
 // ==================== DASHBOARD ROUTES ====================
