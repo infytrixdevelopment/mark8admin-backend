@@ -1,0 +1,560 @@
+# Admin Access Management API - Postman Testing Guide
+
+## Setup Instructions
+
+### 1. Installation
+```bash
+npm install
+```
+
+### 2. Environment Setup
+Create `.env` file based on `.env.example`:
+```bash
+cp .env.example .env
+```
+Update database credentials in `.env`
+
+### 3. Start Server
+```bash
+npm run dev  # Development with nodemon
+# OR
+npm start    # Production
+```
+
+### 4. Generate Mock JWT Token
+Use Node.js REPL to generate a test token:
+```javascript
+const { generateMockToken } = require('./middleware/auth');
+const token = generateMockToken('admin-user-id-uuid', 'admin@example.com', 'admin');
+console.log(token);
+```
+
+---
+
+## Postman Setup
+
+### Global Variables
+Set these in Postman Environment:
+- `base_url`: `http://localhost:3000`
+- `token`: `<your-mock-jwt-token>`
+- `userId`: `<test-user-uuid>`
+- `dashboardId`: `<test-dashboard-uuid>`
+- `brandId`: `<test-brand-uuid>`
+- `platformId`: `<test-platform-uuid>`
+
+### Authorization
+All API requests require Bearer Token:
+- **Type**: Bearer Token
+- **Token**: `{{token}}`
+
+---
+
+## API Endpoints
+
+### 1. Health Check
+**No authentication required**
+
+```http
+GET {{base_url}}/health
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Admin API is running",
+  "timestamp": "2025-11-10T10:30:00.000Z"
+}
+```
+
+---
+
+### 2. Get All Users
+
+```http
+GET {{base_url}}/api/admin/users
+Authorization: Bearer {{token}}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Users fetched successfully",
+  "data": {
+    "users": [
+      {
+        "user_id": "uuid",
+        "email": "user@example.com",
+        "first_name": "John",
+        "last_name": "Doe",
+        "status": "ACTIVE",
+        "created_time_stamp": "2025-01-01T00:00:00.000Z",
+        "updated_time_stamp": null
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+---
+
+### 3. Get Specific User
+
+```http
+GET {{base_url}}/api/admin/users/{{userId}}
+Authorization: Bearer {{token}}
+```
+
+---
+
+### 4. Get All Dashboards
+
+```http
+GET {{base_url}}/api/admin/dashboards
+Authorization: Bearer {{token}}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Dashboards fetched successfully",
+  "data": {
+    "dashboards": [
+      {
+        "dashboard_id": "uuid",
+        "dashboard_type": "Sales Dashboard",
+        "color": "#FF5733",
+        "status": "ACTIVE",
+        "created_time_stamp": "2025-01-01T00:00:00.000Z",
+        "updated_time_stamp": null
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+---
+
+### 5. Check User Dashboard Access
+
+```http
+GET {{base_url}}/api/admin/users/{{userId}}/dashboards/{{dashboardId}}/access
+Authorization: Bearer {{token}}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Access check completed",
+  "data": {
+    "userId": "uuid",
+    "dashboardId": "uuid",
+    "dashboardType": "Sales Dashboard",
+    "userName": "John Doe",
+    "hasAccess": true
+  }
+}
+```
+
+**Use Case:** Before showing the sidebar, call this API to check if user has access
+
+---
+
+### 6. Get User's Brands & Platforms (If Access Granted)
+
+```http
+GET {{base_url}}/api/admin/users/{{userId}}/dashboards/{{dashboardId}}/brands
+Authorization: Bearer {{token}}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User brands and platforms fetched successfully",
+  "data": {
+    "userId": "uuid",
+    "dashboardId": "uuid",
+    "brands": [
+      {
+        "brandId": "uuid",
+        "brandName": "Brand A",
+        "companyName": "Company A",
+        "platforms": [
+          {
+            "mappingId": "uuid",
+            "platformId": "uuid",
+            "platformName": "Amazon",
+            "platformLogoUrl": "https://...",
+            "status": "ACTIVE",
+            "createdTimeStamp": "2025-01-01T00:00:00.000Z",
+            "updatedTimeStamp": null
+          }
+        ]
+      }
+    ],
+    "totalBrands": 1,
+    "totalPlatforms": 1
+  }
+}
+```
+
+---
+
+### 7. Get Available Brands (Not Assigned to User)
+
+```http
+GET {{base_url}}/api/admin/brands/available?userId={{userId}}&dashboardId={{dashboardId}}
+Authorization: Bearer {{token}}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Available brands fetched successfully",
+  "data": {
+    "brands": [
+      {
+        "brand_id": "uuid",
+        "brand_name": "Brand B",
+        "company_name": "Company B",
+        "brand_logo_url": "https://...",
+        "status": "ACTIVE"
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+**Use Case:** Populate dropdown when admin clicks "Add Brand"
+
+---
+
+### 8. Get Brand's Available Platforms
+
+```http
+GET {{base_url}}/api/admin/brands/{{brandId}}/platforms
+Authorization: Bearer {{token}}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Brand platforms fetched successfully",
+  "data": {
+    "brandId": "uuid",
+    "brandName": "Brand B",
+    "platforms": [
+      {
+        "brand_platform_mapping_id": "uuid",
+        "brand_id": "uuid",
+        "platform_id": "uuid",
+        "platform_name": "Amazon",
+        "platform_logo_url": "https://...",
+        "platform_status": "ACTIVE",
+        "mapping_status": "ACTIVE"
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+**Use Case:** Show checkboxes for available platforms when adding/editing brand
+
+---
+
+### 9. Get Assigned Platforms for Brand
+
+```http
+GET {{base_url}}/api/admin/brands/{{brandId}}/platforms/assigned?userId={{userId}}&dashboardId={{dashboardId}}
+Authorization: Bearer {{token}}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Assigned platforms fetched successfully",
+  "data": {
+    "userId": "uuid",
+    "dashboardId": "uuid",
+    "brandId": "uuid",
+    "platforms": [
+      {
+        "mapping_id": "uuid",
+        "platform_id": "uuid",
+        "platform_name": "Amazon",
+        "platform_logo_url": "https://...",
+        "status": "ACTIVE"
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+**Use Case:** Pre-check platforms when editing brand access
+
+---
+
+### 10. Grant Dashboard Access (When User Doesn't Have Access)
+
+```http
+POST {{base_url}}/api/admin/users/{{userId}}/dashboards/{{dashboardId}}/grant-access
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "brandId": "brand-uuid-here",
+  "platformIds": [
+    "platform-uuid-1",
+    "platform-uuid-2"
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Dashboard access granted successfully",
+  "data": {
+    "userId": "uuid",
+    "dashboardId": "uuid",
+    "brandId": "uuid",
+    "platformsAdded": 2,
+    "records": [...]
+  }
+}
+```
+
+**Use Case:** User clicks on dashboard they don't have access to → Show "Grant Access" button → Admin clicks it → This API is called
+
+---
+
+### 11. Add Brand Access (When User Already Has Dashboard Access)
+
+```http
+POST {{base_url}}/api/admin/users/{{userId}}/dashboards/{{dashboardId}}/brands
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "brandId": "brand-uuid-here",
+  "platformIds": [
+    "platform-uuid-1",
+    "platform-uuid-2"
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Brand access added successfully",
+  "data": {
+    "userId": "uuid",
+    "dashboardId": "uuid",
+    "brandId": "uuid",
+    "platformsAdded": 2,
+    "records": [...]
+  }
+}
+```
+
+**Use Case:** User already has dashboard access → Admin wants to add another brand
+
+---
+
+### 11. Edit Brand Platforms
+
+```http
+PUT {{base_url}}/api/admin/users/{{userId}}/dashboards/{{dashboardId}}/brands/{{brandId}}/platforms
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "platformIds": [
+    "platform-uuid-1",
+    "platform-uuid-3"
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Brand platforms updated successfully",
+  "data": {
+    "userId": "uuid",
+    "dashboardId": "uuid",
+    "brandId": "uuid",
+    "platformsAdded": 1,
+    "platformsRemoved": 1,
+    "updates": [
+      {
+        "action": "added",
+        "v3_t_user_app_brand_platform_mapping_id": "uuid",
+        ...
+      },
+      {
+        "action": "removed",
+        "v3_t_user_app_brand_platform_mapping_id": "uuid",
+        ...
+      }
+    ]
+  }
+}
+```
+
+**Logic:** 
+- Platforms in `platformIds` but not currently assigned → Added
+- Platforms currently assigned but not in `platformIds` → Removed (soft delete)
+
+---
+
+### 12. Remove Brand Access
+
+```http
+DELETE {{base_url}}/api/admin/users/{{userId}}/dashboards/{{dashboardId}}/brands/{{brandId}}
+Authorization: Bearer {{token}}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Brand access removed successfully",
+  "data": {
+    "userId": "uuid",
+    "dashboardId": "uuid",
+    "brandId": "uuid",
+    "platformsRemoved": 2,
+    "removedRecords": [...]
+  }
+}
+```
+
+**Logic:** Soft deletes all platform mappings for this brand (sets status to 'INACTIVE')
+
+---
+
+## Testing Flow
+
+### Scenario 1: User Has Access
+1. Call API #5 (Check Access) → `hasAccess: true`
+2. Call API #6 (Get Brands) → Display sidebar with brands
+3. Admin clicks "Edit Brand" → Call API #9 (Get Assigned Platforms)
+4. Admin modifies platforms → Call API #11 (Update)
+
+### Scenario 2: User Doesn't Have Access
+1. Call API #5 (Check Access) → `hasAccess: false`
+2. Show "Grant Access" button
+3. Admin clicks "Grant Access" → Call API #7 (Available Brands)
+4. Admin selects brand → Call API #8 (Brand Platforms)
+5. Admin selects platforms → Call API #10 (Add Brand Access)
+
+### Scenario 3: Add New Brand
+1. Call API #7 (Available Brands)
+2. Admin selects brand → Call API #8 (Brand Platforms)
+3. Admin selects platforms → Call API #10 (Add Brand Access)
+
+### Scenario 4: Remove Brand
+1. Admin clicks "Remove Brand" → Call API #12 (Remove Brand Access)
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+```json
+{
+  "success": false,
+  "message": "brandId and platformIds (array) are required"
+}
+```
+
+### 401 Unauthorized
+```json
+{
+  "success": false,
+  "message": "Access token is missing"
+}
+```
+
+### 403 Forbidden
+```json
+{
+  "success": false,
+  "message": "Invalid or expired token"
+}
+```
+
+### 404 Not Found
+```json
+{
+  "success": false,
+  "message": "User not found"
+}
+```
+
+### 500 Internal Server Error
+```json
+{
+  "success": false,
+  "message": "Failed to fetch users",
+  "error": "Database connection error"
+}
+```
+
+---
+
+## Database Schema Summary
+
+### Main Tables Used:
+1. `t_user` - User information
+2. `t_brands_power_bi_dashboard_type` - Dashboard/App definitions
+3. `neo_brand_master` - Brand master data
+4. `t_platform` - Platform master data
+5. `t_brand_platform_mapping` - Brand-Platform relationships
+6. `v3_t_user_app_brand_platform_mapping` - User access mappings
+
+### Key Relationships:
+- User → Dashboard → Brand → Platform (many-to-many)
+- Soft deletes used throughout (status: 'ACTIVE'/'INACTIVE')
+
+---
+
+## Notes for Frontend Development
+
+1. **Authentication**: Always include Bearer token in headers
+2. **Error Handling**: Check `success` field in all responses
+3. **Access Flow**: Always check access first before loading data
+4. **Platform Selection**: 
+   - For Add: Show all available platforms (API #8)
+   - For Edit: Pre-check assigned platforms (API #9)
+5. **Confirmation**: Add confirmation dialogs for delete operations
+6. **Loading States**: APIs may take time for transaction-heavy operations
+
+---
+
+## Next Steps
+
+1. ✅ Backend APIs completed
+2. ⏳ Test all APIs with Postman
+3. ⏳ Integrate with central auth (replace mock JWT)
+4. ⏳ Build frontend UI
+5. ⏳ Add audit logging
+6. ⏳ Add pagination for large datasets
+7. ⏳ Add search/filter capabilities

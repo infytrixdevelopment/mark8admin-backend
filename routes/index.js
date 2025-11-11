@@ -3,11 +3,12 @@ const express = require('express');
 const router = express.Router();
 
 const { authenticateToken } = require('../middleware/auth');
-const userController = require('../controllers/UserController');
-const dashboardController = require('../controllers/DashboardController');
-const accessController = require('../controllers/AccessController');
-const brandController = require('../controllers/BrandController');
-const brandAccessController = require('../controllers/BrandAccessController');
+const userController = require('../controllers/userController');
+const dashboardController = require('../controllers/dashboardController');
+const accessController = require('../controllers/accessController');
+const brandController = require('../controllers/brandController');
+const brandAccessController = require('../controllers/brandAccessController');
+const auditController = require('../controllers/auditController');
 
 // Apply authentication middleware to all admin routes
 router.use('/api/admin', authenticateToken);
@@ -53,7 +54,14 @@ router.get(
 );
 
 // ==================== BRAND ACCESS MANAGEMENT ROUTES ====================
-// Add brand access (with platforms) for user
+// Grant dashboard access (when user doesn't have access)
+// NEW ENDPOINT - specific for grant access flow
+router.post(
+  '/api/admin/users/:userId/dashboards/:dashboardId/grant-access',
+  brandAccessController.grantDashboardAccess
+);
+
+// Add brand access (when user already has dashboard access)
 router.post(
   '/api/admin/users/:userId/dashboards/:dashboardId/brands',
   brandAccessController.addBrandAccess
@@ -65,10 +73,27 @@ router.put(
   brandAccessController.editBrandPlatforms
 );
 
-// Remove brand access for user
+// Remove brand access for user (HARD DELETE)
 router.delete(
   '/api/admin/users/:userId/dashboards/:dashboardId/brands/:brandId',
   brandAccessController.removeBrandAccess
 );
+
+// Remove entire dashboard access (HARD DELETE all brands/platforms)
+// NEW ENDPOINT
+router.delete(
+  '/api/admin/users/:userId/dashboards/:dashboardId',
+  brandAccessController.removeDashboardAccess
+);
+
+// ==================== AUDIT LOG ROUTES ====================
+// Get all audit logs with filters
+router.get('/api/admin/audit-logs', auditController.getAuditLogs);
+
+// Get audit logs for specific user
+router.get('/api/admin/audit-logs/users/:userId', auditController.getUserAuditLogs);
+
+// Get audit logs by action type
+router.get('/api/admin/audit-logs/actions/:action', auditController.getAuditLogsByAction);
 
 module.exports = router;

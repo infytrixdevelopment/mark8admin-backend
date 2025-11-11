@@ -15,6 +15,7 @@ const getAvailableBrands = async (req, res) => {
     }
 
     // Get all active brands that are NOT assigned to this user for this dashboard
+    // REMOVED status filter from subquery for hard delete
     const query = `
       SELECT DISTINCT
         b.infytrix_brand_id as brand_id,
@@ -27,9 +28,7 @@ const getAvailableBrands = async (req, res) => {
         AND b.infytrix_brand_id NOT IN (
           SELECT DISTINCT brand_id 
           FROM public.v3_t_user_app_brand_platform_mapping
-          WHERE user_id = $1 
-            AND app_id = $2 
-            AND status = 'ACTIVE'
+          WHERE user_id = $1 AND app_id = $2
         )
       ORDER BY b.brand_name ASC
     `;
@@ -128,20 +127,19 @@ const getAssignedPlatforms = async (req, res) => {
       });
     }
 
+    // REMOVED status filter for hard delete
     const query = `
       SELECT 
         uabp.v3_t_user_app_brand_platform_mapping_id as mapping_id,
         uabp.platform_id,
         p.platform as platform_name,
-        p.platform_logo_url,
-        uabp.status
+        p.platform_logo_url
       FROM public.v3_t_user_app_brand_platform_mapping uabp
       INNER JOIN public.t_platform p 
         ON uabp.platform_id = p.platform_id
       WHERE uabp.user_id = $1 
         AND uabp.app_id = $2 
-        AND uabp.brand_id = $3 
-        AND uabp.status = 'ACTIVE'
+        AND uabp.brand_id = $3
       ORDER BY p.platform ASC
     `;
 

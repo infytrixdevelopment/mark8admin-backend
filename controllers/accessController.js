@@ -33,13 +33,11 @@ const checkUserDashboardAccess = async (req, res) => {
       });
     }
 
-    // Check if user has access to this dashboard
+    // Check if user has access to this dashboard (REMOVED status filter for hard delete)
     const accessQuery = `
       SELECT COUNT(*) as access_count
       FROM public.v3_t_user_app_brand_platform_mapping
-      WHERE user_id = $1 
-        AND app_id = $2 
-        AND status = 'ACTIVE'
+      WHERE user_id = $1 AND app_id = $2
     `;
 
     const accessResult = await pool.query(accessQuery, [userId, dashboardId]);
@@ -72,11 +70,11 @@ const getUserDashboardBrands = async (req, res) => {
   try {
     const { userId, dashboardId } = req.params;
 
-    // First check if user has access
+    // First check if user has access (REMOVED status filter)
     const accessCheck = await pool.query(
       `SELECT COUNT(*) as count 
        FROM public.v3_t_user_app_brand_platform_mapping 
-       WHERE user_id = $1 AND app_id = $2 AND status = 'ACTIVE'`,
+       WHERE user_id = $1 AND app_id = $2`,
       [userId, dashboardId]
     );
 
@@ -87,7 +85,7 @@ const getUserDashboardBrands = async (req, res) => {
       });
     }
 
-    // Get all brands and their platforms for this user and dashboard
+    // Get all brands and their platforms for this user and dashboard (REMOVED status filter)
     const query = `
       SELECT 
         uabp.v3_t_user_app_brand_platform_mapping_id as mapping_id,
@@ -97,7 +95,6 @@ const getUserDashboardBrands = async (req, res) => {
         uabp.platform_id,
         p.platform as platform_name,
         p.platform_logo_url,
-        uabp.status,
         uabp.created_time_stamp,
         uabp.updated_time_stamp
       FROM public.v3_t_user_app_brand_platform_mapping uabp
@@ -105,9 +102,7 @@ const getUserDashboardBrands = async (req, res) => {
         ON uabp.brand_id = b.infytrix_brand_id
       INNER JOIN public.t_platform p 
         ON uabp.platform_id = p.platform_id
-      WHERE uabp.user_id = $1 
-        AND uabp.app_id = $2 
-        AND uabp.status = 'ACTIVE'
+      WHERE uabp.user_id = $1 AND uabp.app_id = $2
       ORDER BY b.brand_name, p.platform
     `;
 
@@ -129,7 +124,6 @@ const getUserDashboardBrands = async (req, res) => {
         platformId: row.platform_id,
         platformName: row.platform_name,
         platformLogoUrl: row.platform_logo_url,
-        status: row.status,
         createdTimeStamp: row.created_time_stamp,
         updatedTimeStamp: row.updated_time_stamp
       });
