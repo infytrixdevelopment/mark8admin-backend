@@ -50,6 +50,8 @@ const getUserById = async (req, res) => {
         first_name,
         last_name,
         status,
+        user_type,      -- ADD THIS LINE
+        organisation,   -- ADD THIS LINE
         created_time_stamp,
         updated_time_stamp
       FROM t_users
