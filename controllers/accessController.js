@@ -108,30 +108,34 @@ const getUserDashboardBrands = async (req, res) => {
 
     const result = await pool.query(query, [userId, dashboardId]);
 
-    // Group by brand
+// Group by brand
     const brandMap = {};
     result.rows.forEach(row => {
       if (!brandMap[row.brand_id]) {
         brandMap[row.brand_id] = {
-          brandId: row.brand_id,
-          brandName: row.brand_name,
-          companyName: row.company_name,
+          // --- FIX: Change properties to snake_case ---
+          brand_id: row.brand_id,
+          brand_name: row.brand_name,
+          company_name: row.company_name,
+          // --- END FIX ---
           platforms: []
         };
       }
       brandMap[row.brand_id].platforms.push({
-        mappingId: row.mapping_id,
-        platformId: row.platform_id,
-        platformName: row.platform_name,
-        platformLogoUrl: row.platform_logo_url,
-        createdTimeStamp: row.created_time_stamp,
-        updatedTimeStamp: row.updated_time_stamp
+        // --- FIX: Change properties to snake_case ---
+        mapping_id: row.mapping_id,
+        platform_id: row.platform_id,
+        platform_name: row.platform_name,
+        platform_logo_url: row.platform_logo_url,
+        created_time_stamp: row.created_time_stamp,
+        updated_time_stamp: row.updated_time_stamp
+        // --- END FIX ---
       });
     });
 
     const brands = Object.values(brandMap);
 
-    return res.status(200).json({
+return res.status(200).json({
       success: true,
       message: 'User brands and platforms fetched successfully',
       data: {
