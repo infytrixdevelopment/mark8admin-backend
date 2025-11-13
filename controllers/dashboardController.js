@@ -5,16 +5,15 @@ const pool = require('../config/database');
 const getAllDashboards = async (req, res) => {
   try {
     const query = `
-      SELECT 
-        brand_power_bi_dashboard_type_id as dashboard_id,
-        dashboard_type,
-        color,
-        status,
-        created_time_stamp,
-        updated_time_stamp
-      FROM public.t_brands_power_bi_dashboard_type
-      WHERE status = 'ACTIVE'
-      ORDER BY dashboard_type ASC
+SELECT 
+  app_id as dashboard_id,
+  app_name as dashboard_type,  -- Use alias to avoid breaking frontend
+  status,
+  created_time_stamp,
+  updated_time_stamp
+FROM public.v3_t_master_apps   
+WHERE status = 'ACTIVE'
+ORDER BY app_name ASC          
     `;
 
     const result = await pool.query(query);
@@ -43,15 +42,14 @@ const getDashboardById = async (req, res) => {
     const { dashboardId } = req.params;
 
     const query = `
-      SELECT 
-        brand_power_bi_dashboard_type_id as dashboard_id,
-        dashboard_type,
-        color,
-        status,
-        created_time_stamp,
-        updated_time_stamp
-      FROM public.t_brands_power_bi_dashboard_type
-      WHERE brand_power_bi_dashboard_type_id = $1
+SELECT 
+  app_id as dashboard_id,
+  app_name as dashboard_type,
+  status,
+  created_time_stamp,
+  updated_time_stamp
+FROM public.v3_t_master_apps   
+WHERE app_id = $1             
     `;
 
     const result = await pool.query(query, [dashboardId]);

@@ -56,7 +56,7 @@ const grantDashboardAccess = async (req, res) => {
 
     // Verify dashboard exists
     const dashboardCheck = await client.query(
-      'SELECT brand_power_bi_dashboard_type_id, dashboard_type FROM public.t_brands_power_bi_dashboard_type WHERE brand_power_bi_dashboard_type_id = $1',
+      'SELECT app_id, app_name as dashboard_type FROM public.v3_t_master_apps WHERE app_id = $1',
       [dashboardId]
     );
     if (dashboardCheck.rowCount === 0) {
@@ -80,15 +80,16 @@ const grantDashboardAccess = async (req, res) => {
       });
     }
 
-    // Check if brand-platforms are valid
-    const platformCheck = await client.query(
-      `SELECT platform_id 
-       FROM public.t_brand_platform_mapping 
-       WHERE brand_id = $1 
-         AND platform_id = ANY($2::uuid[]) 
-         AND status = 'ACTIVE'`,
-      [brandId, platformIds]
-    );
+// Check if brand-platforms are valid FOR THIS APP
+const platformCheck = await client.query(
+  `SELECT platform_id 
+   FROM public.v3_t_app_brand_platform_mapping 
+   WHERE app_id = $1
+     AND brand_id = $2 
+     AND platform_id = ANY($3::uuid[]) 
+     AND status = 'ACTIVE'`,
+  [dashboardId, brandId, platformIds]
+);
 
     if (platformCheck.rowCount !== platformIds.length) {
       await client.query('ROLLBACK');
@@ -241,15 +242,16 @@ const addBrandAccess = async (req, res) => {
       });
     }
 
-    // Check if brand-platforms are valid
-    const platformCheck = await client.query(
-      `SELECT platform_id 
-       FROM public.t_brand_platform_mapping 
-       WHERE brand_id = $1 
-         AND platform_id = ANY($2::uuid[]) 
-         AND status = 'ACTIVE'`,
-      [brandId, platformIds]
-    );
+// Check if brand-platforms are valid FOR THIS APP
+const platformCheck = await client.query(
+  `SELECT platform_id 
+   FROM public.v3_t_app_brand_platform_mapping 
+   WHERE app_id = $1
+     AND brand_id = $2 
+     AND platform_id = ANY($3::uuid[]) 
+     AND status = 'ACTIVE'`,
+  [dashboardId, brandId, platformIds]
+);
 
     if (platformCheck.rowCount !== platformIds.length) {
       await client.query('ROLLBACK');
@@ -424,14 +426,15 @@ const editBrandPlatforms = async (req, res) => {
     // INSERT new platforms
     for (const platformId of platformsToAdd) {
       // Validate platform for this brand
-      const validPlatform = await client.query(
-        `SELECT platform_id 
-         FROM public.t_brand_platform_mapping 
-         WHERE brand_id = $1 
-           AND platform_id = $2 
-           AND status = 'ACTIVE'`,
-        [brandId, platformId]
-      );
+const validPlatform = await client.query(
+  `SELECT platform_id 
+   FROM public.v3_t_app_brand_platform_mapping 
+   WHERE app_id = $1
+     AND brand_id = $2 
+     AND platform_id = $3 
+     AND status = 'ACTIVE'`,
+  [dashboardId, brandId, platformId]
+);
 
       if (validPlatform.rowCount === 0) {
         await client.query('ROLLBACK');

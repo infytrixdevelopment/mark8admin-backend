@@ -46,7 +46,17 @@ router.get(
   '/api/admin/users/:userId/dashboards/:dashboardId/brands',
   accessController.getUserDashboardBrands
 );
+// Get user's brands and platforms for specific dashboard
+router.get(
+  '/api/admin/users/:userId/dashboards/:dashboardId/brands',
+  accessController.getUserDashboardBrands
+);
 
+// Get user's full access tree
+router.get(
+  '/api/admin/users/:userId/access-tree',
+  accessController.getUserAccessTree
+);
 // ==================== BRAND ROUTES ====================
 // Get available brands (not assigned to user)
 router.get('/api/admin/brands/available', brandController.getAvailableBrands);

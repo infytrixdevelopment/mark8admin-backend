@@ -22,7 +22,7 @@ const checkUserDashboardAccess = async (req, res) => {
 
     // Check dashboard exists
     const dashboardCheck = await pool.query(
-      'SELECT dashboard_type FROM public.t_brands_power_bi_dashboard_type WHERE brand_power_bi_dashboard_type_id = $1',
+      'SELECT app_name as dashboard_type FROM public.v3_t_master_apps WHERE app_id = $1',
       [dashboardId]
     );
 
@@ -100,7 +100,7 @@ const getUserDashboardBrands = async (req, res) => {
       FROM public.v3_t_user_app_brand_platform_mapping uabp
       INNER JOIN public.neo_brand_master b 
         ON uabp.brand_id = b.infytrix_brand_id
-      INNER JOIN public.t_platform p 
+      INNER JOIN public.v3_t_master_platforms p 
         ON uabp.platform_id = p.platform_id
       WHERE uabp.user_id = $1 AND uabp.app_id = $2
       ORDER BY b.brand_name, p.platform
@@ -155,8 +155,100 @@ return res.status(200).json({
     });
   }
 };
+// GET /api/admin/users/:userId/access-tree
+// Get user's full access tree (all dashboards, brands, platforms)
+const getUserAccessTree = async (req, res) => {
+  try {
+    const { userId } = req.params;
 
+    // Yeh query user ke saare access records ko dashboards, brands,
+    // aur platforms ke naam ke saath le aayegi.
+    const query = `
+      SELECT 
+d.app_id as dashboard_id,      
+  d.app_name as dashboard_name,    
+        b.infytrix_brand_id as brand_id,
+        b.brand_name,
+        p.platform_id,
+        p.platform as platform_name
+      FROM 
+        public.v3_t_user_app_brand_platform_mapping uabp
+      INNER JOIN 
+        public.v3_t_master_apps d ON uabp.app_id = d.app_id
+      INNER JOIN 
+        public.neo_brand_master b ON uabp.brand_id = b.infytrix_brand_id
+      INNER JOIN 
+        public.v3_t_master_platforms p ON uabp.platform_id = p.platform_id
+      WHERE 
+        uabp.user_id = $1
+      ORDER BY 
+        d.app_name, b.brand_name, p.platform;
+    `;
+
+    const result = await pool.query(query, [userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'User has no access grants.',
+        data: []
+      });
+    }
+
+    // Ab hum flat data (database rows) ko nested JSON mein badlenge
+    const dashboardMap = new Map();
+
+    result.rows.forEach(row => {
+      // 1. Dashboard Level
+      if (!dashboardMap.has(row.dashboard_id)) {
+        dashboardMap.set(row.dashboard_id, {
+          dashboard_id: row.dashboard_id,
+          dashboard_name: row.dashboard_name,
+          brands: new Map()
+        });
+      }
+
+      // 2. Brand Level
+      const dashboard = dashboardMap.get(row.dashboard_id);
+      if (!dashboard.brands.has(row.brand_id)) {
+        dashboard.brands.set(row.brand_id, {
+          brand_id: row.brand_id,
+          brand_name: row.brand_name,
+          platforms: []
+        });
+      }
+
+      // 3. Platform Level
+      const brand = dashboard.brands.get(row.brand_id);
+      brand.platforms.push({
+        platform_id: row.platform_id,
+        platform_name: row.platform_name
+      });
+    });
+
+    // Final JSON structure banane ke liye Maps ko Arrays mein convert karein
+    const accessTree = Array.from(dashboardMap.values()).map(dashboard => {
+      dashboard.brands = Array.from(dashboard.brands.values());
+      return dashboard;
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'User access tree fetched successfully',
+      data: accessTree
+    });
+
+  } catch (error) {
+    console.error('Error fetching user access tree:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch user access tree',
+      error: error.message
+    });
+  }
+};
 module.exports = {
   checkUserDashboardAccess,
-  getUserDashboardBrands
+  getUserDashboardBrands,
+  getUserAccessTree
 };

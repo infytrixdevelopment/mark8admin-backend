@@ -1,3 +1,13 @@
+// Set mock authentication
+localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjYjZlNWY4ZS01ZTU0LTRjZjctOGE0ZS00YTIyZWYzY2MwMDIiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzYzMDA1NzMyLCJleHAiOjE3NjMwOTIxMzJ9.125oVvCosVw-iAlOF3B5uTd_EfBiaGhcS-My7JTBPgU.mock');
+localStorage.setItem('user_id', 'admin-uuid-123');
+localStorage.setItem('full_name', 'Admin User');
+localStorage.setItem('user_type', 'ADMIN');
+
+// Refresh page
+location.reload();
+
+
 # Admin Access Management API - Postman Testing Guide
 
 ## Setup Instructions

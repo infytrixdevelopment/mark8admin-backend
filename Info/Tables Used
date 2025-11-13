@@ -1,0 +1,10 @@
+1. t_users:- stores all user information
+2. neo_brand_master:- This is the main "brands" table, storing infytrix_brand_id and brand_name.
+3. t_access_audit_log:- This table is used by the AuditService to log every action an admin performs, such as ADD_BRAND, REMOVE_DASHBOARD, etc.
+4. v3_t_user_app_brand_platform_mapping = It's the central mapping table that links everything together, storing which user_id has access to which app_id (dashboard), brand_id, and platform_id.
+
+Localhost to Production table change:
+1. t_brands_power_bi_dashboard_type = v3_t_master_apps :-stores the list of available dashboards/apps (e.g., "Ads", "Visibility").
+2. t_platform = v3_t_master_platforms:- stores the list of all available platforms (e.g., "Amazon", "Flipkart").
+
+3. t_brand_platform_mapping = v3_t_app_brand_platform_mapping = This table defines Under the app which platforms are valid for which brands. We use it to populate the checkboxes in the modal. (previously our implementation was mapping brand with platforms, now we have under which app which brand is available and there respective platforms mapped).

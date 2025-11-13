@@ -58,7 +58,14 @@ const getAvailableBrands = async (req, res) => {
 const getBrandPlatforms = async (req, res) => {
   try {
     const { brandId } = req.params;
+    const { dashboardId } = req.query;
 
+    if (!dashboardId) {
+      return res.status(400).json({
+        success: false,
+        message: 'dashboardId is required as a query parameter'
+      });
+    }
     // Verify brand exists
     const brandCheck = await pool.query(
       'SELECT brand_name FROM public.neo_brand_master WHERE infytrix_brand_id = $1',
@@ -73,27 +80,28 @@ const getBrandPlatforms = async (req, res) => {
     }
 
     // Get all platforms for this brand
-    const query = `
+const query = `
       SELECT 
-        bpm.brand_platform_mapping_id,
-        bpm.brand_id,
-        bpm.platform_id,
+        abp.v3_t_app_brand_platform_mapping_id as mapping_id,
+        abp.brand_id,
+        abp.platform_id,
         p.platform as platform_name,
         p.platform_logo_url,
         p.status as platform_status,
-        bpm.status as mapping_status
-      FROM public.t_brand_platform_mapping bpm
-      INNER JOIN public.t_platform p 
-        ON bpm.platform_id = p.platform_id
-      WHERE bpm.brand_id = $1 
-        AND bpm.status = 'ACTIVE'
+        abp.status as mapping_status
+      FROM public.v3_t_app_brand_platform_mapping abp
+      INNER JOIN public.v3_t_master_platforms p 
+        ON abp.platform_id = p.platform_id
+      WHERE abp.brand_id = $1 
+        AND abp.app_id = $2
+        AND abp.status = 'ACTIVE'
         AND p.status = 'ACTIVE'
       ORDER BY p.platform ASC
     `;
 
-    const result = await pool.query(query, [brandId]);
+    const result = await pool.query(query, [brandId, dashboardId]);
 
-    return res.status(200).json({
+return res.status(200).json({
       success: true,
       message: 'Brand platforms fetched successfully',
       data: {
@@ -135,7 +143,7 @@ const getAssignedPlatforms = async (req, res) => {
         p.platform as platform_name,
         p.platform_logo_url
       FROM public.v3_t_user_app_brand_platform_mapping uabp
-      INNER JOIN public.t_platform p 
+      INNER JOIN public.v3_t_master_platforms p 
         ON uabp.platform_id = p.platform_id
       WHERE uabp.user_id = $1 
         AND uabp.app_id = $2 
