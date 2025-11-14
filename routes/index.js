@@ -10,7 +10,7 @@ const accessController = require('../controllers/accessController');
 const brandController = require('../controllers/brandController');
 const brandAccessController = require('../controllers/brandAccessController');
 const auditController = require('../controllers/auditController');
-
+const brandMappingController = require('../controllers/brandMappingController');
 // Apply authentication middleware to all admin routes
 router.use('/api/admin', authenticateToken);
 
@@ -76,6 +76,28 @@ router.delete('/api/admin/users/:userId/apps/:appId/brands/:brandId', brandAcces
 // Remove entire dashboard access (HARD DELETE all brands/platforms)
 // NEW ENDPOINT
 router.delete('/api/admin/users/:userId/apps/:appId', brandAccessController.removeAppAccess);
+
+// ==================== BRAND MAPPING ROUTES (NEW) ====================
+// Get brands already mapped to an app (landing page)
+router.get('/api/admin/brand-mappings', brandMappingController.getMappedBrands);
+
+// Get brands NOT mapped to an app (for modal)
+router.get('/api/admin/brand-mappings/unmapped', brandMappingController.getUnmappedBrands);
+
+// Get all master platforms (for modal)
+router.get('/api/admin/brand-mappings/platforms', brandMappingController.getAllPlatforms);
+
+// Get all master Power BI dashboards (for sub-modal)
+router.get('/api/admin/brand-mappings/power-bi-dashboards', brandMappingController.getPowerBiDashboards);
+
+// Get full details for one app-brand mapping (for edit)
+router.get('/api/admin/brand-mappings/:appId/:brandId', brandMappingController.getBrandMappingDetails);
+// Create a new full brand mapping
+router.post('/api/admin/brand-mappings', brandMappingController.createBrandMapping);
+// Update an existing full brand mapping
+router.put('/api/admin/brand-mappings/:appId/:brandId', brandMappingController.updateBrandMapping);
+// Delete a full brand mapping (cascades to user table)
+router.delete('/api/admin/brand-mappings/:appId/:brandId', brandMappingController.deleteBrandMapping);
 
 // ==================== AUDIT LOG ROUTES ====================
 // Get all audit logs with filters

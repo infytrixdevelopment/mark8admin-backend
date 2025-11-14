@@ -1,0 +1,16 @@
+controllers/brandMappingController.js
+Please create this new file in your controllers directory. This file contains the logic for all 7 new APIs:
+
+Get Mapped Brands (for landing page): Fetches brands already configured for an app.
+
+Get Unmapped Brands (for modal): Fetches brands not yet configured for an app.
+
+Get All Platforms (for modal): Gets the full list from v3_t_master_platforms.
+
+Get PBI Dashboards (for sub-modal): Gets Power BI dashboards from v3_t_master_power_bi_dashboard_type.
+
+Get Full Mapping (for edit): Gets all platforms and PBI dashboards for a single brand/app.
+
+Create Full Mapping (for save): A complex transaction to create all mappings.
+
+Delete Full Mapping (for delete): A complex transaction to delete from all 3 tables (as you requested).
