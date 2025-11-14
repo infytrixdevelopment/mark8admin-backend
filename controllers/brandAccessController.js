@@ -8,13 +8,13 @@ const getRequestMetadata = (req) => ({
   userAgent: req.get('user-agent') || null
 });
 
-// POST /api/admin/users/:userId/dashboards/:dashboardId/grant-access
-// Grant access when user doesn't have dashboard access (same as add brand but specific endpoint)
-const grantDashboardAccess = async (req, res) => {
+// POST /api/admin/users/:userId/apps/:appId/grant-access
+// Grant access when user doesn't have app access
+const grantAppAccess = async (req, res) => {
   const client = await pool.connect();
   
   try {
-    const { userId, dashboardId } = req.params;
+    const { userId, appId } = req.params;
     const { brandId, platformIds } = req.body;
     const adminUserId = req.user.userId;
     const { ipAddress, userAgent } = getRequestMetadata(req);
@@ -23,7 +23,7 @@ const grantDashboardAccess = async (req, res) => {
     if (!brandId || !platformIds || !Array.isArray(platformIds) || platformIds.length === 0) {
       await AuditService.logFailure({
         userId,
-        appId: dashboardId,
+        appId: appId,
         brandId,
         action: 'GRANT_ACCESS',
         actionDetails: 'Failed: Invalid request body',
@@ -54,16 +54,16 @@ const grantDashboardAccess = async (req, res) => {
       });
     }
 
-    // Verify dashboard exists
-    const dashboardCheck = await client.query(
+    // Verify app exists
+    const appCheck = await client.query(
       'SELECT app_id, app_name as dashboard_type FROM public.v3_t_master_apps WHERE app_id = $1',
-      [dashboardId]
+      [appId]
     );
-    if (dashboardCheck.rowCount === 0) {
+    if (appCheck.rowCount === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({
         success: false,
-        message: 'Dashboard not found'
+        message: 'App not found'
       });
     }
 
@@ -80,16 +80,16 @@ const grantDashboardAccess = async (req, res) => {
       });
     }
 
-// Check if brand-platforms are valid FOR THIS APP
-const platformCheck = await client.query(
-  `SELECT platform_id 
-   FROM public.v3_t_app_brand_platform_mapping 
-   WHERE app_id = $1
-     AND brand_id = $2 
-     AND platform_id = ANY($3::uuid[]) 
-     AND status = 'ACTIVE'`,
-  [dashboardId, brandId, platformIds]
-);
+    // Check if brand-platforms are valid FOR THIS APP
+    const platformCheck = await client.query(
+      `SELECT platform_id 
+       FROM public.v3_t_app_brand_platform_mapping 
+       WHERE app_id = $1
+         AND brand_id = $2 
+         AND platform_id = ANY($3::uuid[]) 
+         AND status = 'ACTIVE'`,
+      [appId, brandId, platformIds]
+    );
 
     if (platformCheck.rowCount !== platformIds.length) {
       await client.query('ROLLBACK');
@@ -102,7 +102,6 @@ const platformCheck = await client.query(
     const insertedRecords = [];
     const now = new Date();
 
-    // Insert records for each platform (HARD DELETE approach - just INSERT)
     for (const platformId of platformIds) {
       // Check if already exists
       const existingCheck = await client.query(
@@ -112,11 +111,10 @@ const platformCheck = await client.query(
            AND app_id = $2 
            AND brand_id = $3 
            AND platform_id = $4`,
-        [userId, dashboardId, brandId, platformId]
+        [userId, appId, brandId, platformId]
       );
 
       if (existingCheck.rowCount > 0) {
-        // Already exists, skip
         insertedRecords.push({ platformId, status: 'already_exists' });
         continue;
       }
@@ -131,7 +129,7 @@ const platformCheck = await client.query(
       const result = await client.query(insertQuery, [
         userId,
         brandId,
-        dashboardId,
+        appId,
         platformId,
         adminUserId,
         now
@@ -141,13 +139,12 @@ const platformCheck = await client.query(
 
     await client.query('COMMIT');
 
-    // Log successful audit entry
     await AuditService.logSuccess({
       userId,
-      appId: dashboardId,
+      appId: appId,
       brandId,
       action: 'GRANT_ACCESS',
-      actionDetails: `Granted access to ${userCheck.rows[0].first_name} ${userCheck.rows[0].last_name} for ${dashboardCheck.rows[0].dashboard_type} - ${brandCheck.rows[0].brand_name} with ${platformIds.length} platforms`,
+      actionDetails: `Granted access to ${userCheck.rows[0].first_name} ${userCheck.rows[0].last_name} for ${appCheck.rows[0].dashboard_type} - ${brandCheck.rows[0].brand_name} with ${platformIds.length} platforms`,
       requestBody: req.body,
       performedBy: adminUserId,
       ipAddress,
@@ -156,10 +153,10 @@ const platformCheck = await client.query(
 
     return res.status(201).json({
       success: true,
-      message: 'Dashboard access granted successfully',
+      message: 'App access granted successfully',
       data: {
         userId: userId,
-        dashboardId: dashboardId,
+        appId: appId,
         brandId: brandId,
         platformsAdded: insertedRecords.length,
         records: insertedRecords
@@ -167,16 +164,16 @@ const platformCheck = await client.query(
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error granting dashboard access:', error);
+    console.error('Error granting app access:', error);
 
-    const { userId, dashboardId } = req.params;
+    const { userId, appId } = req.params;
     const { brandId } = req.body;
     const adminUserId = req.user.userId;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({
       userId,
-      appId: dashboardId,
+      appId: appId,
       brandId,
       action: 'GRANT_ACCESS',
       actionDetails: 'Failed with error',
@@ -188,7 +185,7 @@ const platformCheck = await client.query(
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to grant dashboard access',
+      message: 'Failed to grant app access',
       error: error.message
     });
   } finally {
@@ -196,22 +193,21 @@ const platformCheck = await client.query(
   }
 };
 
-// POST /api/admin/users/:userId/dashboards/:dashboardId/brands
-// Add brand access (when user already has dashboard access)
+// POST /api/admin/users/:userId/apps/:appId/brands
+// Add brand access (when user already has app access)
 const addBrandAccess = async (req, res) => {
   const client = await pool.connect();
   
   try {
-    const { userId, dashboardId } = req.params;
+    const { userId, appId } = req.params;
     const { brandId, platformIds } = req.body;
     const adminUserId = req.user.userId;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
-    // Validation
     if (!brandId || !platformIds || !Array.isArray(platformIds) || platformIds.length === 0) {
       await AuditService.logFailure({
         userId,
-        appId: dashboardId,
+        appId: appId,
         brandId,
         action: 'ADD_BRAND',
         actionDetails: 'Failed: Invalid request body',
@@ -229,7 +225,6 @@ const addBrandAccess = async (req, res) => {
 
     await client.query('BEGIN');
 
-    // Verify brand exists
     const brandCheck = await client.query(
       'SELECT brand_name FROM public.neo_brand_master WHERE infytrix_brand_id = $1',
       [brandId]
@@ -242,16 +237,16 @@ const addBrandAccess = async (req, res) => {
       });
     }
 
-// Check if brand-platforms are valid FOR THIS APP
-const platformCheck = await client.query(
-  `SELECT platform_id 
-   FROM public.v3_t_app_brand_platform_mapping 
-   WHERE app_id = $1
-     AND brand_id = $2 
-     AND platform_id = ANY($3::uuid[]) 
-     AND status = 'ACTIVE'`,
-  [dashboardId, brandId, platformIds]
-);
+    // Check if brand-platforms are valid FOR THIS APP
+    const platformCheck = await client.query(
+      `SELECT platform_id 
+       FROM public.v3_t_app_brand_platform_mapping 
+       WHERE app_id = $1
+         AND brand_id = $2 
+         AND platform_id = ANY($3::uuid[]) 
+         AND status = 'ACTIVE'`,
+      [appId, brandId, platformIds]
+    );
 
     if (platformCheck.rowCount !== platformIds.length) {
       await client.query('ROLLBACK');
@@ -264,7 +259,6 @@ const platformCheck = await client.query(
     const insertedRecords = [];
     const now = new Date();
 
-    // Insert records for each platform
     for (const platformId of platformIds) {
       const existingCheck = await client.query(
         `SELECT v3_t_user_app_brand_platform_mapping_id 
@@ -273,7 +267,7 @@ const platformCheck = await client.query(
            AND app_id = $2 
            AND brand_id = $3 
            AND platform_id = $4`,
-        [userId, dashboardId, brandId, platformId]
+        [userId, appId, brandId, platformId]
       );
 
       if (existingCheck.rowCount > 0) {
@@ -290,7 +284,7 @@ const platformCheck = await client.query(
       const result = await client.query(insertQuery, [
         userId,
         brandId,
-        dashboardId,
+        appId,
         platformId,
         adminUserId,
         now
@@ -300,10 +294,9 @@ const platformCheck = await client.query(
 
     await client.query('COMMIT');
 
-    // Log audit
     await AuditService.logSuccess({
       userId,
-      appId: dashboardId,
+      appId: appId,
       brandId,
       action: 'ADD_BRAND',
       actionDetails: `Added brand ${brandCheck.rows[0].brand_name} with ${platformIds.length} platforms`,
@@ -318,7 +311,7 @@ const platformCheck = await client.query(
       message: 'Brand access added successfully',
       data: {
         userId: userId,
-        dashboardId: dashboardId,
+        appId: appId,
         brandId: brandId,
         platformsAdded: insertedRecords.length,
         records: insertedRecords
@@ -328,14 +321,14 @@ const platformCheck = await client.query(
     await client.query('ROLLBACK');
     console.error('Error adding brand access:', error);
 
-    const { userId, dashboardId } = req.params;
+    const { userId, appId } = req.params;
     const { brandId } = req.body;
     const adminUserId = req.user.userId;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({
       userId,
-      appId: dashboardId,
+      appId: appId,
       brandId,
       action: 'ADD_BRAND',
       actionDetails: 'Failed with error',
@@ -355,22 +348,21 @@ const platformCheck = await client.query(
   }
 };
 
-// PUT /api/admin/users/:userId/dashboards/:dashboardId/brands/:brandId/platforms
-// Edit platforms for a brand (HARD DELETE removed platforms, INSERT new ones)
+// PUT /api/admin/users/:userId/apps/:appId/brands/:brandId/platforms
+// Edit platforms for a brand
 const editBrandPlatforms = async (req, res) => {
   const client = await pool.connect();
   
   try {
-    const { userId, dashboardId, brandId } = req.params;
+    const { userId, appId, brandId } = req.params;
     const { platformIds } = req.body;
     const adminUserId = req.user.userId;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
-    // Validation
     if (!platformIds || !Array.isArray(platformIds)) {
       await AuditService.logFailure({
         userId,
-        appId: dashboardId,
+        appId: appId,
         brandId,
         action: 'EDIT_PLATFORMS',
         actionDetails: 'Failed: Invalid request body',
@@ -388,14 +380,13 @@ const editBrandPlatforms = async (req, res) => {
 
     await client.query('BEGIN');
 
-    // Get currently assigned platforms
     const currentPlatforms = await client.query(
       `SELECT platform_id, v3_t_user_app_brand_platform_mapping_id
        FROM public.v3_t_user_app_brand_platform_mapping 
        WHERE user_id = $1 
          AND app_id = $2 
          AND brand_id = $3`,
-      [userId, dashboardId, brandId]
+      [userId, appId, brandId]
     );
 
     const currentPlatformIds = currentPlatforms.rows.map(row => row.platform_id);
@@ -405,7 +396,6 @@ const editBrandPlatforms = async (req, res) => {
     const now = new Date();
     const updatedRecords = [];
 
-    // HARD DELETE platforms to remove
     if (platformsToRemove.length > 0) {
       const mappingsToDelete = currentPlatforms.rows
         .filter(row => platformsToRemove.includes(row.platform_id))
@@ -423,18 +413,17 @@ const editBrandPlatforms = async (req, res) => {
       });
     }
 
-    // INSERT new platforms
     for (const platformId of platformsToAdd) {
-      // Validate platform for this brand
-const validPlatform = await client.query(
-  `SELECT platform_id 
-   FROM public.v3_t_app_brand_platform_mapping 
-   WHERE app_id = $1
-     AND brand_id = $2 
-     AND platform_id = $3 
-     AND status = 'ACTIVE'`,
-  [dashboardId, brandId, platformId]
-);
+      // Validate platform for this brand AND APP
+      const validPlatform = await client.query(
+        `SELECT platform_id 
+         FROM public.v3_t_app_brand_platform_mapping 
+         WHERE app_id = $1
+           AND brand_id = $2 
+           AND platform_id = $3 
+           AND status = 'ACTIVE'`,
+        [appId, brandId, platformId]
+      );
 
       if (validPlatform.rowCount === 0) {
         await client.query('ROLLBACK');
@@ -444,23 +433,21 @@ const validPlatform = await client.query(
         });
       }
 
-      // Insert new record
       const result = await client.query(
         `INSERT INTO public.v3_t_user_app_brand_platform_mapping 
          (user_id, brand_id, app_id, platform_id, created_by, created_time_stamp, status)
          VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE')
          RETURNING *`,
-        [userId, brandId, dashboardId, platformId, adminUserId, now]
+        [userId, brandId, appId, platformId, adminUserId, now]
       );
       updatedRecords.push({ action: 'added', ...result.rows[0] });
     }
 
     await client.query('COMMIT');
 
-    // Log audit
     await AuditService.logSuccess({
       userId,
-      appId: dashboardId,
+      appId: appId,
       brandId,
       action: 'EDIT_PLATFORMS',
       actionDetails: `Edited platforms: Added ${platformsToAdd.length}, Removed ${platformsToRemove.length}`,
@@ -475,7 +462,7 @@ const validPlatform = await client.query(
       message: 'Brand platforms updated successfully',
       data: {
         userId: userId,
-        dashboardId: dashboardId,
+        appId: appId,
         brandId: brandId,
         platformsAdded: platformsToAdd.length,
         platformsRemoved: platformsToRemove.length,
@@ -486,13 +473,13 @@ const validPlatform = await client.query(
     await client.query('ROLLBACK');
     console.error('Error editing brand platforms:', error);
 
-    const { userId, dashboardId, brandId } = req.params;
+    const { userId, appId, brandId } = req.params;
     const adminUserId = req.user.userId;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({
       userId,
-      appId: dashboardId,
+      appId: appId,
       brandId,
       action: 'EDIT_PLATFORMS',
       actionDetails: 'Failed with error',
@@ -512,26 +499,25 @@ const validPlatform = await client.query(
   }
 };
 
-// DELETE /api/admin/users/:userId/dashboards/:dashboardId/brands/:brandId
-// Remove brand (HARD DELETE all platforms for this brand)
+// DELETE /api/admin/users/:userId/apps/:appId/brands/:brandId
+// Remove brand
 const removeBrandAccess = async (req, res) => {
   const client = await pool.connect();
   
   try {
-    const { userId, dashboardId, brandId } = req.params;
+    const { userId, appId, brandId } = req.params;
     const adminUserId = req.user.userId;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await client.query('BEGIN');
 
-    // Get all mappings for this brand before deleting (for audit log)
     const mappingsToRemove = await client.query(
       `SELECT v3_t_user_app_brand_platform_mapping_id, platform_id 
        FROM public.v3_t_user_app_brand_platform_mapping 
        WHERE user_id = $1 
          AND app_id = $2 
          AND brand_id = $3`,
-      [userId, dashboardId, brandId]
+      [userId, appId, brandId]
     );
 
     if (mappingsToRemove.rowCount === 0) {
@@ -542,7 +528,6 @@ const removeBrandAccess = async (req, res) => {
       });
     }
 
-    // HARD DELETE all mappings
     const deleteQuery = `
       DELETE FROM public.v3_t_user_app_brand_platform_mapping 
       WHERE user_id = $1 
@@ -551,14 +536,13 @@ const removeBrandAccess = async (req, res) => {
       RETURNING *
     `;
 
-    const result = await client.query(deleteQuery, [userId, dashboardId, brandId]);
+    const result = await client.query(deleteQuery, [userId, appId, brandId]);
 
     await client.query('COMMIT');
 
-    // Log audit
     await AuditService.logSuccess({
       userId,
-      appId: dashboardId,
+      appId: appId,
       brandId,
       action: 'REMOVE_BRAND',
       actionDetails: `Removed brand with ${result.rowCount} platforms`,
@@ -573,7 +557,7 @@ const removeBrandAccess = async (req, res) => {
       message: 'Brand access removed successfully',
       data: {
         userId: userId,
-        dashboardId: dashboardId,
+        appId: appId,
         brandId: brandId,
         platformsRemoved: result.rowCount,
         removedRecords: result.rows
@@ -583,13 +567,13 @@ const removeBrandAccess = async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Error removing brand access:', error);
 
-    const { userId, dashboardId, brandId } = req.params;
+    const { userId, appId, brandId } = req.params;
     const adminUserId = req.user.userId;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({
       userId,
-      appId: dashboardId,
+      appId: appId,
       brandId,
       action: 'REMOVE_BRAND',
       actionDetails: 'Failed with error',
@@ -609,55 +593,52 @@ const removeBrandAccess = async (req, res) => {
   }
 };
 
-// DELETE /api/admin/users/:userId/dashboards/:dashboardId
-// Remove entire dashboard access (HARD DELETE all brands and platforms)
-const removeDashboardAccess = async (req, res) => {
+// DELETE /api/admin/users/:userId/apps/:appId
+// Remove entire app access
+const removeAppAccess = async (req, res) => {
   const client = await pool.connect();
   
   try {
-    const { userId, dashboardId } = req.params;
+    const { userId, appId } = req.params;
     const adminUserId = req.user.userId;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await client.query('BEGIN');
 
-    // Get count before deleting
     const countQuery = await client.query(
       `SELECT COUNT(*) as total_count,
               COUNT(DISTINCT brand_id) as brand_count
        FROM public.v3_t_user_app_brand_platform_mapping 
        WHERE user_id = $1 AND app_id = $2`,
-      [userId, dashboardId]
+      [userId, appId]
     );
 
     if (parseInt(countQuery.rows[0].total_count) === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({
         success: false,
-        message: 'No dashboard access found to remove'
+        message: 'No app access found to remove'
       });
     }
 
-    // HARD DELETE all mappings for this user-dashboard combination
     const deleteQuery = `
       DELETE FROM public.v3_t_user_app_brand_platform_mapping 
       WHERE user_id = $1 AND app_id = $2
       RETURNING *
     `;
 
-    const result = await client.query(deleteQuery, [userId, dashboardId]);
+    const result = await client.query(deleteQuery, [userId, appId]);
 
     await client.query('COMMIT');
 
-    // Log audit
     await AuditService.logSuccess({
       userId,
-      appId: dashboardId,
-      action: 'REMOVE_DASHBOARD',
-      actionDetails: `Removed entire dashboard access with ${countQuery.rows[0].brand_count} brands and ${result.rowCount} platforms`,
+      appId: appId,
+      action: 'REMOVE_APP',
+      actionDetails: `Removed entire app access with ${countQuery.rows[0].brand_count} brands and ${result.rowCount} platforms`,
       requestBody: { 
         userId, 
-        dashboardId,
+        appId,
         brandsRemoved: parseInt(countQuery.rows[0].brand_count),
         platformsRemoved: result.rowCount
       },
@@ -668,10 +649,10 @@ const removeDashboardAccess = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Dashboard access removed successfully',
+      message: 'App access removed successfully',
       data: {
         userId: userId,
-        dashboardId: dashboardId,
+        appId: appId,
         brandsRemoved: parseInt(countQuery.rows[0].brand_count),
         platformsRemoved: result.rowCount,
         removedRecords: result.rows
@@ -679,18 +660,18 @@ const removeDashboardAccess = async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error removing dashboard access:', error);
+    console.error('Error removing app access:', error);
 
-    const { userId, dashboardId } = req.params;
+    const { userId, appId } = req.params;
     const adminUserId = req.user.userId;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({
       userId,
-      appId: dashboardId,
-      action: 'REMOVE_DASHBOARD',
+      appId: appId,
+      action: 'REMOVE_APP',
       actionDetails: 'Failed with error',
-      requestBody: { userId, dashboardId },
+      requestBody: { userId, appId },
       performedBy: adminUserId,
       ipAddress,
       userAgent
@@ -698,7 +679,7 @@ const removeDashboardAccess = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to remove dashboard access',
+      message: 'Failed to remove app access',
       error: error.message
     });
   } finally {
@@ -707,9 +688,9 @@ const removeDashboardAccess = async (req, res) => {
 };
 
 module.exports = {
-  grantDashboardAccess,
+  grantAppAccess,
   addBrandAccess,
   editBrandPlatforms,
   removeBrandAccess,
-  removeDashboardAccess
+  removeAppAccess
 };

@@ -5,7 +5,7 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const userController = require('../controllers/userController');
 const userManagementController = require('../controllers/userManagementController');
-const dashboardController = require('../controllers/dashboardController');
+const appController = require('../controllers/appController');
 const accessController = require('../controllers/accessController');
 const brandController = require('../controllers/brandController');
 const brandAccessController = require('../controllers/brandAccessController');
@@ -27,30 +27,19 @@ router.put('/api/admin/users/:userId/status', userManagementController.updateUse
 // Get specific user (original endpoint)
 router.get('/api/admin/users/:userId', userController.getUserById);
 
-// ==================== DASHBOARD ROUTES ====================
-// Get all dashboards
-router.get('/api/admin/dashboards', dashboardController.getAllDashboards);
+// ==================== App ROUTES ====================
+// Get all apps
+router.get('/api/admin/apps', appController.getAllApps);
 
-// Get specific dashboard
-router.get('/api/admin/dashboards/:dashboardId', dashboardController.getDashboardById);
+// Get specific app by id
+router.get('/api/admin/apps/:appId', appController.getAppById);
 
 // ==================== ACCESS CHECK ROUTES ====================
 // Check if user has access to dashboard
-router.get(
-  '/api/admin/users/:userId/dashboards/:dashboardId/access',
-  accessController.checkUserDashboardAccess
-);
+router.get('/api/admin/users/:userId/apps/:appId/access', accessController.checkUserAppAccess);
 
-// Get user's brands and platforms for specific dashboard
-router.get(
-  '/api/admin/users/:userId/dashboards/:dashboardId/brands',
-  accessController.getUserDashboardBrands
-);
-// Get user's brands and platforms for specific dashboard
-router.get(
-  '/api/admin/users/:userId/dashboards/:dashboardId/brands',
-  accessController.getUserDashboardBrands
-);
+// Get user's brands and platforms for specific apps
+router.get('/api/admin/users/:userId/apps/:appId/brands', accessController.getUserAppBrands);
 
 // Get user's full access tree
 router.get(
@@ -73,35 +62,20 @@ router.get(
 // ==================== BRAND ACCESS MANAGEMENT ROUTES ====================
 // Grant dashboard access (when user doesn't have access)
 // NEW ENDPOINT - specific for grant access flow
-router.post(
-  '/api/admin/users/:userId/dashboards/:dashboardId/grant-access',
-  brandAccessController.grantDashboardAccess
-);
+router.post('/api/admin/users/:userId/apps/:appId/grant-access', brandAccessController.grantAppAccess);
 
 // Add brand access (when user already has dashboard access)
-router.post(
-  '/api/admin/users/:userId/dashboards/:dashboardId/brands',
-  brandAccessController.addBrandAccess
-);
+router.post('/api/admin/users/:userId/apps/:appId/brands', brandAccessController.addBrandAccess);
 
 // Edit brand platforms for user
-router.put(
-  '/api/admin/users/:userId/dashboards/:dashboardId/brands/:brandId/platforms',
-  brandAccessController.editBrandPlatforms
-);
+router.put('/api/admin/users/:userId/apps/:appId/brands/:brandId/platforms', brandAccessController.editBrandPlatforms);
 
 // Remove brand access for user (HARD DELETE)
-router.delete(
-  '/api/admin/users/:userId/dashboards/:dashboardId/brands/:brandId',
-  brandAccessController.removeBrandAccess
-);
+router.delete('/api/admin/users/:userId/apps/:appId/brands/:brandId', brandAccessController.removeBrandAccess);
 
 // Remove entire dashboard access (HARD DELETE all brands/platforms)
 // NEW ENDPOINT
-router.delete(
-  '/api/admin/users/:userId/dashboards/:dashboardId',
-  brandAccessController.removeDashboardAccess
-);
+router.delete('/api/admin/users/:userId/apps/:appId', brandAccessController.removeAppAccess);
 
 // ==================== AUDIT LOG ROUTES ====================
 // Get all audit logs with filters

@@ -1,11 +1,11 @@
 // controllers/accessController.js
 const pool = require('../config/database');
 
-// GET /api/admin/users/:userId/dashboards/:dashboardId/access
-// Check if user has access to specific dashboard
-const checkUserDashboardAccess = async (req, res) => {
+// GET /api/admin/users/:userId/apps/:appId/access
+// Check if user has access to specific app
+const checkUserAppAccess = async (req, res) => {
   try {
-    const { userId, dashboardId } = req.params;
+    const { userId, appId } = req.params;
 
     // First verify user exists
     const userCheck = await pool.query(
@@ -20,27 +20,27 @@ const checkUserDashboardAccess = async (req, res) => {
       });
     }
 
-    // Check dashboard exists
-    const dashboardCheck = await pool.query(
-      'SELECT app_name as dashboard_type FROM public.v3_t_master_apps WHERE app_id = $1',
-      [dashboardId]
+    // Check app exists
+    const appCheck = await pool.query(
+      'SELECT app_name FROM public.v3_t_master_apps WHERE app_id = $1',
+      [appId]
     );
 
-    if (dashboardCheck.rowCount === 0) {
+    if (appCheck.rowCount === 0) {
       return res.status(404).json({
         success: false,
-        message: 'Dashboard not found'
+        message: 'App not found'
       });
     }
 
-    // Check if user has access to this dashboard (REMOVED status filter for hard delete)
+    // Check if user has access to this app
     const accessQuery = `
       SELECT COUNT(*) as access_count
       FROM public.v3_t_user_app_brand_platform_mapping
       WHERE user_id = $1 AND app_id = $2
     `;
 
-    const accessResult = await pool.query(accessQuery, [userId, dashboardId]);
+    const accessResult = await pool.query(accessQuery, [userId, appId]);
     const hasAccess = parseInt(accessResult.rows[0].access_count) > 0;
 
     return res.status(200).json({
@@ -48,8 +48,8 @@ const checkUserDashboardAccess = async (req, res) => {
       message: 'Access check completed',
       data: {
         userId: userId,
-        dashboardId: dashboardId,
-        dashboardType: dashboardCheck.rows[0].dashboard_type,
+        appId: appId,
+        appType: appCheck.rows[0].app_name,
         userName: `${userCheck.rows[0].first_name} ${userCheck.rows[0].last_name}`,
         hasAccess: hasAccess
       }
@@ -64,28 +64,28 @@ const checkUserDashboardAccess = async (req, res) => {
   }
 };
 
-// GET /api/admin/users/:userId/dashboards/:dashboardId/brands
-// Get all brands and platforms assigned to user for specific dashboard
-const getUserDashboardBrands = async (req, res) => {
+// GET /api/admin/users/:userId/apps/:appId/brands
+// Get all brands and platforms assigned to user for specific app
+const getUserAppBrands = async (req, res) => {
   try {
-    const { userId, dashboardId } = req.params;
+    const { userId, appId } = req.params;
 
-    // First check if user has access (REMOVED status filter)
+    // First check if user has access
     const accessCheck = await pool.query(
       `SELECT COUNT(*) as count 
        FROM public.v3_t_user_app_brand_platform_mapping 
        WHERE user_id = $1 AND app_id = $2`,
-      [userId, dashboardId]
+      [userId, appId]
     );
 
     if (parseInt(accessCheck.rows[0].count) === 0) {
       return res.status(404).json({
         success: false,
-        message: 'User does not have access to this dashboard'
+        message: 'User does not have access to this app'
       });
     }
 
-    // Get all brands and their platforms for this user and dashboard (REMOVED status filter)
+    // Get all brands and their platforms for this user and app
     const query = `
       SELECT 
         uabp.v3_t_user_app_brand_platform_mapping_id as mapping_id,
@@ -106,41 +106,37 @@ const getUserDashboardBrands = async (req, res) => {
       ORDER BY b.brand_name, p.platform
     `;
 
-    const result = await pool.query(query, [userId, dashboardId]);
+    const result = await pool.query(query, [userId, appId]);
 
-// Group by brand
+    // Group by brand
     const brandMap = {};
     result.rows.forEach(row => {
       if (!brandMap[row.brand_id]) {
         brandMap[row.brand_id] = {
-          // --- FIX: Change properties to snake_case ---
           brand_id: row.brand_id,
           brand_name: row.brand_name,
           company_name: row.company_name,
-          // --- END FIX ---
           platforms: []
         };
       }
       brandMap[row.brand_id].platforms.push({
-        // --- FIX: Change properties to snake_case ---
         mapping_id: row.mapping_id,
         platform_id: row.platform_id,
         platform_name: row.platform_name,
         platform_logo_url: row.platform_logo_url,
         created_time_stamp: row.created_time_stamp,
         updated_time_stamp: row.updated_time_stamp
-        // --- END FIX ---
       });
     });
 
     const brands = Object.values(brandMap);
 
-return res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'User brands and platforms fetched successfully',
       data: {
         userId: userId,
-        dashboardId: dashboardId,
+        appId: appId,
         brands: brands,
         totalBrands: brands.length,
         totalPlatforms: result.rowCount
@@ -155,18 +151,17 @@ return res.status(200).json({
     });
   }
 };
+
 // GET /api/admin/users/:userId/access-tree
-// Get user's full access tree (all dashboards, brands, platforms)
+// Get user's full access tree (all apps, brands, platforms)
 const getUserAccessTree = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // Yeh query user ke saare access records ko dashboards, brands,
-    // aur platforms ke naam ke saath le aayegi.
     const query = `
       SELECT 
-d.app_id as dashboard_id,      
-  d.app_name as dashboard_name,    
+        d.app_id as app_id,
+        d.app_name as app_name,
         b.infytrix_brand_id as brand_id,
         b.brand_name,
         p.platform_id,
@@ -195,23 +190,22 @@ d.app_id as dashboard_id,
       });
     }
 
-    // Ab hum flat data (database rows) ko nested JSON mein badlenge
-    const dashboardMap = new Map();
+    const appMap = new Map();
 
     result.rows.forEach(row => {
-      // 1. Dashboard Level
-      if (!dashboardMap.has(row.dashboard_id)) {
-        dashboardMap.set(row.dashboard_id, {
-          dashboard_id: row.dashboard_id,
-          dashboard_name: row.dashboard_name,
+      // 1. App Level
+      if (!appMap.has(row.app_id)) {
+        appMap.set(row.app_id, {
+          app_id: row.app_id,
+          app_name: row.app_name,
           brands: new Map()
         });
       }
 
       // 2. Brand Level
-      const dashboard = dashboardMap.get(row.dashboard_id);
-      if (!dashboard.brands.has(row.brand_id)) {
-        dashboard.brands.set(row.brand_id, {
+      const app = appMap.get(row.app_id);
+      if (!app.brands.has(row.brand_id)) {
+        app.brands.set(row.brand_id, {
           brand_id: row.brand_id,
           brand_name: row.brand_name,
           platforms: []
@@ -219,17 +213,16 @@ d.app_id as dashboard_id,
       }
 
       // 3. Platform Level
-      const brand = dashboard.brands.get(row.brand_id);
+      const brand = app.brands.get(row.brand_id);
       brand.platforms.push({
         platform_id: row.platform_id,
         platform_name: row.platform_name
       });
     });
 
-    // Final JSON structure banane ke liye Maps ko Arrays mein convert karein
-    const accessTree = Array.from(dashboardMap.values()).map(dashboard => {
-      dashboard.brands = Array.from(dashboard.brands.values());
-      return dashboard;
+    const accessTree = Array.from(appMap.values()).map(app => {
+      app.brands = Array.from(app.brands.values());
+      return app;
     });
 
     return res.status(200).json({
@@ -247,8 +240,9 @@ d.app_id as dashboard_id,
     });
   }
 };
+
 module.exports = {
-  checkUserDashboardAccess,
-  getUserDashboardBrands,
+  checkUserAppAccess,
+  getUserAppBrands,
   getUserAccessTree
 };

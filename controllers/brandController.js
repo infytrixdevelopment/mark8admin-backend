@@ -1,21 +1,19 @@
 // controllers/brandController.js
 const pool = require('../config/database');
 
-// GET /api/admin/brands/available?userId=xxx&dashboardId=xxx
-// Get brands that are NOT assigned to user for specific dashboard
+// GET /api/admin/brands/available?userId=xxx&appId=xxx
+// Get brands that are NOT assigned to user for specific app
 const getAvailableBrands = async (req, res) => {
   try {
-    const { userId, dashboardId } = req.query;
+    const { userId, appId } = req.query;
 
-    if (!userId || !dashboardId) {
+    if (!userId || !appId) {
       return res.status(400).json({
         success: false,
-        message: 'userId and dashboardId are required query parameters'
+        message: 'userId and appId are required query parameters'
       });
     }
 
-    // Get all active brands that are NOT assigned to this user for this dashboard
-    // REMOVED status filter from subquery for hard delete
     const query = `
       SELECT DISTINCT
         b.infytrix_brand_id as brand_id,
@@ -33,7 +31,7 @@ const getAvailableBrands = async (req, res) => {
       ORDER BY b.brand_name ASC
     `;
 
-    const result = await pool.query(query, [userId, dashboardId]);
+    const result = await pool.query(query, [userId, appId]);
 
     return res.status(200).json({
       success: true,
@@ -53,20 +51,20 @@ const getAvailableBrands = async (req, res) => {
   }
 };
 
-// GET /api/admin/brands/:brandId/platforms
-// Get all platforms available for a specific brand
+// GET /api/admin/brands/:brandId/platforms?appId=xxx
+// Get all platforms available for a specific brand AND app
 const getBrandPlatforms = async (req, res) => {
   try {
     const { brandId } = req.params;
-    const { dashboardId } = req.query;
+    const { appId } = req.query;
 
-    if (!dashboardId) {
+    if (!appId) {
       return res.status(400).json({
         success: false,
-        message: 'dashboardId is required as a query parameter'
+        message: 'appId is required as a query parameter'
       });
     }
-    // Verify brand exists
+
     const brandCheck = await pool.query(
       'SELECT brand_name FROM public.neo_brand_master WHERE infytrix_brand_id = $1',
       [brandId]
@@ -79,8 +77,7 @@ const getBrandPlatforms = async (req, res) => {
       });
     }
 
-    // Get all platforms for this brand
-const query = `
+    const query = `
       SELECT 
         abp.v3_t_app_brand_platform_mapping_id as mapping_id,
         abp.brand_id,
@@ -99,9 +96,9 @@ const query = `
       ORDER BY p.platform ASC
     `;
 
-    const result = await pool.query(query, [brandId, dashboardId]);
+    const result = await pool.query(query, [brandId, appId]);
 
-return res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Brand platforms fetched successfully',
       data: {
@@ -121,21 +118,20 @@ return res.status(200).json({
   }
 };
 
-// GET /api/admin/brands/:brandId/platforms/assigned?userId=xxx&dashboardId=xxx
-// Get platforms already assigned to user for a specific brand and dashboard
+// GET /api/admin/brands/:brandId/platforms/assigned?userId=xxx&appId=xxx
+// Get platforms already assigned to user for a specific brand and app
 const getAssignedPlatforms = async (req, res) => {
   try {
     const { brandId } = req.params;
-    const { userId, dashboardId } = req.query;
+    const { userId, appId } = req.query;
 
-    if (!userId || !dashboardId) {
+    if (!userId || !appId) {
       return res.status(400).json({
         success: false,
-        message: 'userId and dashboardId are required query parameters'
+        message: 'userId and appId are required query parameters'
       });
     }
 
-    // REMOVED status filter for hard delete
     const query = `
       SELECT 
         uabp.v3_t_user_app_brand_platform_mapping_id as mapping_id,
@@ -151,14 +147,14 @@ const getAssignedPlatforms = async (req, res) => {
       ORDER BY p.platform ASC
     `;
 
-    const result = await pool.query(query, [userId, dashboardId, brandId]);
+    const result = await pool.query(query, [userId, appId, brandId]);
 
     return res.status(200).json({
       success: true,
       message: 'Assigned platforms fetched successfully',
       data: {
         userId: userId,
-        dashboardId: dashboardId,
+        appId: appId,
         brandId: brandId,
         platforms: result.rows,
         total: result.rowCount
