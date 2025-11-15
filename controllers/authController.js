@@ -23,12 +23,12 @@ exports.validateAdminFromCentralAuth = async (req, res, next) => {
         });
       }
       
-      console.log(data);
+      //console.log(data);
   
       req.user = data?.data;
       next()
     } catch (error) {
-        console.log(error);
+        //console.log(error);
 
         // --- 1. THIS IS THE FIX ---
         // Check if the error is from the axios call (Heroku)

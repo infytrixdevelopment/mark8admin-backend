@@ -36,7 +36,7 @@ Use Node.js REPL to generate a test token:
 ```javascript
 const { generateMockToken } = require('./middleware/auth');
 const token = generateMockToken('admin-user-id-uuid', 'admin@example.com', 'admin');
-console.log(token);
+//console.log(token);
 ```
 
 ---
