@@ -43,10 +43,10 @@ const getAllUsers = async (req, res) => {
         status,
         created_time_stamp,
         last_login_time_stamp
-      FROM t_users
+      FROM v3_t_master_users
     `;
 
-    let countQuery = 'SELECT COUNT(*) as total FROM t_users';
+    let countQuery = 'SELECT COUNT(*) as total FROM v3_t_master_users';
     const queryParams = [];
     const countParams = [];
 
@@ -97,7 +97,7 @@ const addUser = async (req, res) => {
   const client = await pool.connect();
   
   try {
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     // Validate request body
@@ -127,7 +127,7 @@ const addUser = async (req, res) => {
 
     // Check if email already exists
     const existingUser = await client.query(
-      'SELECT user_id, email FROM t_users WHERE email = $1',
+      'SELECT user_id, email FROM v3_t_master_users WHERE email = $1',
       [email]
     );
 
@@ -158,7 +158,7 @@ const addUser = async (req, res) => {
 
     // Insert new user
     const insertQuery = `
-      INSERT INTO t_users (
+      INSERT INTO v3_t_master_users (
         first_name,
         last_name,
         full_name,
@@ -210,7 +210,7 @@ const addUser = async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Error adding user:', error);
 
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({
@@ -240,7 +240,7 @@ const updateUserStatus = async (req, res) => {
   
   try {
     const { userId } = req.params;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     // Validate request body
@@ -259,7 +259,7 @@ const updateUserStatus = async (req, res) => {
 
     // Check if user exists
     const userCheck = await client.query(
-      'SELECT user_id, full_name, email, status FROM t_users WHERE user_id = $1',
+      'SELECT user_id, full_name, email, status FROM v3_t_master_users WHERE user_id = $1',
       [userId]
     );
 
@@ -275,7 +275,7 @@ const updateUserStatus = async (req, res) => {
 
     // Update status
     const updateQuery = `
-      UPDATE t_users 
+      UPDATE v3_t_master_users 
       SET status = $1,
           updated_by = $2,
           updated_time_stamp = NOW()
@@ -310,7 +310,7 @@ const updateUserStatus = async (req, res) => {
     console.error('Error updating user status:', error);
 
     const { userId } = req.params;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({

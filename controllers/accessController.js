@@ -9,7 +9,7 @@ const checkUserAppAccess = async (req, res) => {
 
     // First verify user exists
     const userCheck = await pool.query(
-      'SELECT user_id, first_name, last_name FROM t_users WHERE user_id = $1',
+      'SELECT user_id, first_name, last_name FROM v3_t_master_users WHERE user_id = $1',
       [userId]
     );
 

@@ -16,7 +16,7 @@ const grantAppAccess = async (req, res) => {
   try {
     const { userId, appId } = req.params;
     const { brandId, platformIds } = req.body;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     // Validation
@@ -43,7 +43,7 @@ const grantAppAccess = async (req, res) => {
 
     // Verify user exists
     const userCheck = await client.query(
-      'SELECT user_id, first_name, last_name FROM t_users WHERE user_id = $1',
+      'SELECT user_id, first_name, last_name FROM v3_t_master_users WHERE user_id = $1',
       [userId]
     );
     if (userCheck.rowCount === 0) {
@@ -168,7 +168,7 @@ const grantAppAccess = async (req, res) => {
 
     const { userId, appId } = req.params;
     const { brandId } = req.body;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({
@@ -201,7 +201,7 @@ const addBrandAccess = async (req, res) => {
   try {
     const { userId, appId } = req.params;
     const { brandId, platformIds } = req.body;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     if (!brandId || !platformIds || !Array.isArray(platformIds) || platformIds.length === 0) {
@@ -323,7 +323,7 @@ const addBrandAccess = async (req, res) => {
 
     const { userId, appId } = req.params;
     const { brandId } = req.body;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({
@@ -356,7 +356,7 @@ const editBrandPlatforms = async (req, res) => {
   try {
     const { userId, appId, brandId } = req.params;
     const { platformIds } = req.body;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     if (!platformIds || !Array.isArray(platformIds)) {
@@ -474,7 +474,7 @@ const editBrandPlatforms = async (req, res) => {
     console.error('Error editing brand platforms:', error);
 
     const { userId, appId, brandId } = req.params;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({
@@ -506,7 +506,7 @@ const removeBrandAccess = async (req, res) => {
   
   try {
     const { userId, appId, brandId } = req.params;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await client.query('BEGIN');
@@ -568,7 +568,7 @@ const removeBrandAccess = async (req, res) => {
     console.error('Error removing brand access:', error);
 
     const { userId, appId, brandId } = req.params;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({
@@ -600,7 +600,7 @@ const removeAppAccess = async (req, res) => {
   
   try {
     const { userId, appId } = req.params;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await client.query('BEGIN');
@@ -663,7 +663,7 @@ const removeAppAccess = async (req, res) => {
     console.error('Error removing app access:', error);
 
     const { userId, appId } = req.params;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await AuditService.logFailure({

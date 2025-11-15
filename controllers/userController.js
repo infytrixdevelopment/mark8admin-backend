@@ -13,7 +13,7 @@ const getAllUsers = async (req, res) => {
         status,
         created_time_stamp,
         updated_time_stamp
-      FROM t_users
+      FROM v3_t_master_users
       WHERE status = 'ACTIVE'
       ORDER BY created_time_stamp DESC
     `;
@@ -54,7 +54,7 @@ const getUserById = async (req, res) => {
         organisation,   -- ADD THIS LINE
         created_time_stamp,
         updated_time_stamp
-      FROM t_users
+      FROM v3_t_master_users
       WHERE user_id = $1
     `;
 

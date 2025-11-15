@@ -233,7 +233,7 @@ const createBrandMapping = async (req, res) => {
   const client = await pool.connect();
   try {
     const { appId, brandId, platformIds, dashboards } = req.body;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     if (!appId || !brandId || !platformIds || platformIds.length === 0) {
@@ -306,7 +306,7 @@ const updateBrandMapping = async (req, res) => {
   try {
     const { appId, brandId } = req.params;
     const { platformIds, dashboards } = req.body; // New desired state
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     if (!appId || !brandId || !platformIds) {
@@ -428,7 +428,7 @@ const deleteBrandMapping = async (req, res) => {
   const client = await pool.connect();
   try {
     const { appId, brandId } = req.params;
-    const adminUserId = req.user.userId;
+    const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     await client.query('BEGIN');
