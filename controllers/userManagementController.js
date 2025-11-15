@@ -94,7 +94,7 @@ const getAllUsers = async (req, res) => {
 
 // POST /api/admin/users - Add new user
 const addUser = async (req, res) => {
-  const client = await pool.connect();
+  const client = await pool.connect(); 
   
   try {
     const adminUserId = req.user.user_id;
