@@ -80,25 +80,25 @@ router.delete('/api/admin/users/:userId/apps/:appId', authController.validateAdm
 
 // ==================== BRAND MAPPING ROUTES (NEW) ====================
 // Get brands already mapped to an app (landing page)
-router.get('/api/admin/brand-mappings', brandMappingController.getMappedBrands);
+router.get('/api/admin/brand-mappings', authController.validateAdminFromCentralAuth, brandMappingController.getMappedBrands);
 
 // Get brands NOT mapped to an app (for modal)
-router.get('/api/admin/brand-mappings/unmapped', brandMappingController.getUnmappedBrands);
+router.get('/api/admin/brand-mappings/unmapped', authController.validateAdminFromCentralAuth, brandMappingController.getUnmappedBrands);
 
 // Get all master platforms (for modal)
-router.get('/api/admin/brand-mappings/platforms', brandMappingController.getAllPlatforms);
+router.get('/api/admin/brand-mappings/platforms', authController.validateAdminFromCentralAuth, brandMappingController.getAllPlatforms);
 
 // Get all master Power BI dashboards (for sub-modal)
-router.get('/api/admin/brand-mappings/power-bi-dashboards', brandMappingController.getPowerBiDashboards);
+router.get('/api/admin/brand-mappings/power-bi-dashboards', authController.validateAdminFromCentralAuth, brandMappingController.getPowerBiDashboards);
 
 // Get full details for one app-brand mapping (for edit)
-router.get('/api/admin/brand-mappings/:appId/:brandId', brandMappingController.getBrandMappingDetails);
+router.get('/api/admin/brand-mappings/:appId/:brandId', authController.validateAdminFromCentralAuth, brandMappingController.getBrandMappingDetails);
 // Create a new full brand mapping
-router.post('/api/admin/brand-mappings', brandMappingController.createBrandMapping);
+router.post('/api/admin/brand-mappings', authController.validateAdminFromCentralAuth, brandMappingController.createBrandMapping);
 // Update an existing full brand mapping
-router.put('/api/admin/brand-mappings/:appId/:brandId', brandMappingController.updateBrandMapping);
+router.put('/api/admin/brand-mappings/:appId/:brandId', authController.validateAdminFromCentralAuth, brandMappingController.updateBrandMapping);
 // Delete a full brand mapping (cascades to user table)
-router.delete('/api/admin/brand-mappings/:appId/:brandId', brandMappingController.deleteBrandMapping);
+router.delete('/api/admin/brand-mappings/:appId/:brandId', authController.validateAdminFromCentralAuth, brandMappingController.deleteBrandMapping);
 
 // ==================== AUDIT LOG ROUTES ====================
 // Get all audit logs with filters
