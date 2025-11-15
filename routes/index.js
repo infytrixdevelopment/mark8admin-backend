@@ -1,7 +1,7 @@
 // routes/index.js
 const express = require('express');
 const router = express.Router();
-require('dotenv').config();
+
 // const { authenticateToken } = require('../middleware/auth');
 const userController = require('../controllers/userController');
 const userManagementController = require('../controllers/userManagementController');
