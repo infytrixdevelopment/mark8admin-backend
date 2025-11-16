@@ -36,7 +36,7 @@ const getMappedBrands = async (req, res) => {
           )
          FROM v3_t_app_brand_platform_mapping abp
          JOIN v3_t_master_platforms p ON abp.platform_id = p.platform_id
-         LEFT JOIN v3_t_app_brand_power_bi_dashboard_mapping pbi
+         LEFT JOIN v3_t_app_brand_platform_power_bi_dashboard_mapping pbi
            ON abp.app_id = pbi.app_id
            AND abp.brand_id = pbi.brand_id
            AND abp.platform_id = pbi.platform_id
@@ -196,7 +196,7 @@ const getBrandMappingDetails = async (req, res) => {
         workspace_id,
         report_id,
         dataset_id
-      FROM public.v3_t_app_brand_power_bi_dashboard_mapping
+      FROM public.v3_t_app_brand_platform_power_bi_dashboard_mapping
       WHERE app_id = $1 AND brand_id = $2 AND status = 'ACTIVE'
     `;
     
@@ -252,11 +252,11 @@ const createBrandMapping = async (req, res) => {
       await client.query(platformQuery, [appId, brandId, platformId, adminUserId]);
     }
 
-    // 2. Insert into v3_t_app_brand_power_bi_dashboard_mapping (if any)
+    // 2. Insert into v3_t_app_brand_platform_power_bi_dashboard_mapping (if any)
     if (dashboards && dashboards.length > 0) {
       for (const dash of dashboards) {
         const pbiQuery = `
-          INSERT INTO public.v3_t_app_brand_power_bi_dashboard_mapping
+          INSERT INTO public.v3_t_app_brand_platform_power_bi_dashboard_mapping
           (app_id, brand_id, platform_id, dashboard_type, url, created_by, created_time_stamp, status, workspace_id, report_id, dataset_id, master_power_bi_dashboard_type_id)
           VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'ACTIVE', $7, $8, $9, $10)
         `;
@@ -356,11 +356,11 @@ const updateBrandMapping = async (req, res) => {
       }
     }
 
-    // 2. SYNC v3_t_app_brand_power_bi_dashboard_mapping
+    // 2. SYNC v3_t_app_brand_platform_power_bi_dashboard_mapping
     // This table is still fine to sync (delete all, re-add)
     // as it's complex to check for deltas on all dashboard fields.
     await client.query(
-      `DELETE FROM public.v3_t_app_brand_power_bi_dashboard_mapping WHERE app_id = $1 AND brand_id = $2`,
+      `DELETE FROM public.v3_t_app_brand_platform_power_bi_dashboard_mapping WHERE app_id = $1 AND brand_id = $2`,
       [appId, brandId]
     );
 
@@ -368,7 +368,7 @@ const updateBrandMapping = async (req, res) => {
     if (dashboards && dashboards.length > 0) {
       for (const dash of dashboards) {
         const pbiQuery = `
-          INSERT INTO public.v3_t_app_brand_power_bi_dashboard_mapping
+          INSERT INTO public.v3_t_app_brand_platform_power_bi_dashboard_mapping
           (app_id, brand_id, platform_id, dashboard_type, url, created_by, created_time_stamp, updated_by, updated_time_stamp, status, workspace_id, report_id, dataset_id, master_power_bi_dashboard_type_id)
           VALUES ($1, $2, $3, $4, $5, $6, NOW(), $6, NOW(), 'ACTIVE', $7, $8, $9, $10)
         `;
@@ -439,9 +439,9 @@ const deleteBrandMapping = async (req, res) => {
       [appId, brandId]
     );
     
-    // 2. Delete from v3_t_app_brand_power_bi_dashboard_mapping
+    // 2. Delete from v3_t_app_brand_platform_power_bi_dashboard_mapping
     const res2 = await client.query(
-      `DELETE FROM public.v3_t_app_brand_power_bi_dashboard_mapping WHERE app_id = $1 AND brand_id = $2`,
+      `DELETE FROM public.v3_t_app_brand_platform_power_bi_dashboard_mapping WHERE app_id = $1 AND brand_id = $2`,
       [appId, brandId]
     );
 
