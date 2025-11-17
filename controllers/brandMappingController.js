@@ -1,6 +1,7 @@
 // controllers/brandMappingController.js
 const pool = require('../config/database');
 const AuditService = require('../services/auditService');
+const axios = require('axios');
 
 // Helper function to extract IP and User Agent
 const getRequestMetadata = (req) => ({
@@ -8,7 +9,21 @@ const getRequestMetadata = (req) => ({
   userAgent: req.get('user-agent') || null
 });
 
-
+// --- UPDATED HELPER ---
+// Helper function to clear ALL users Redis cache in Central Auth
+const clearAllUsersCache = async (token) => {
+  try {
+    const authUrl = process.env.AUTH_URL || 'http://localhost:8000';
+    // --- FIX: Pass auth header ---
+    await axios.get(`${authUrl}/api/v1/admin/clearAllUsersCache`, {
+      headers: { Authorization: token }
+    });
+    console.log('Redis cache cleared for ALL users');
+  } catch (error) {
+    console.error('Error clearing Redis cache for all users:', error.response ? error.response.data : error.message);
+    // Don't throw - cache clear failure shouldn't block the main operation
+  }
+};
 // GET /api/admin/brand-mappings?appId=...
 // Get brands that are already mapped for a specific app (for landing page list)
 const getMappedBrands = async (req, res) => {
@@ -18,7 +33,6 @@ const getMappedBrands = async (req, res) => {
       return res.status(400).json({ success: false, message: 'appId query parameter is required' });
     }
 
-    // --- THIS QUERY IS UPDATED ---
     // Added 'dashboard_name' to the JSON_BUILD_OBJECT
     const query = `
       SELECT
@@ -235,6 +249,7 @@ const createBrandMapping = async (req, res) => {
     const { appId, brandId, platformIds, dashboards } = req.body;
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
+    const token = req.headers.authorization; // <-- Get the token
 
     if (!appId || !brandId || !platformIds || platformIds.length === 0) {
       return res.status(400).json({ success: false, message: 'appId, brandId, and at least one platformId are required' });
@@ -268,7 +283,9 @@ const createBrandMapping = async (req, res) => {
     }
     
     await client.query('COMMIT');
-
+    // Clear Redis cache for ALL users (brand mapping affects all users)
+    // --- Pass the token ---
+    await clearAllUsersCache(token);
     // Audit log
     await AuditService.logSuccess({
       appId: appId,
@@ -308,6 +325,7 @@ const updateBrandMapping = async (req, res) => {
     const { platformIds, dashboards } = req.body; // New desired state
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
+    const token = req.headers.authorization; // <-- Get the token
 
     if (!appId || !brandId || !platformIds) {
       return res.status(400).json({ success: false, message: 'appId, brandId, and platformIds (array) are required' });
@@ -392,7 +410,9 @@ const updateBrandMapping = async (req, res) => {
     }
     
     await client.query('COMMIT');
-
+    // Clear Redis cache for ALL users (brand mapping affects all users)
+    // --- Pass the token ---
+    await clearAllUsersCache(token);
     // Audit log
     await AuditService.logSuccess({
       appId: appId,
@@ -430,6 +450,7 @@ const deleteBrandMapping = async (req, res) => {
     const { appId, brandId } = req.params;
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
+    const token = req.headers.authorization; // <-- Get the token
 
     await client.query('BEGIN');
 
@@ -452,7 +473,9 @@ const deleteBrandMapping = async (req, res) => {
     );
 
     await client.query('COMMIT');
-    
+    // Clear Redis cache for ALL users (brand mapping affects all users)
+    // --- Pass the token ---
+    await clearAllUsersCache(token);
     // Audit log
     await AuditService.logSuccess({
       appId: appId,

@@ -61,11 +61,11 @@ router.get(
 );
 
 // ==================== BRAND ACCESS MANAGEMENT ROUTES ====================
-// Grant dashboard access (when user doesn't have access)
+// Grant app access (when user doesn't have access)
 // NEW ENDPOINT - specific for grant access flow
 router.post('/api/admin/users/:userId/apps/:appId/grant-access', authController.validateAdminFromCentralAuth, brandAccessController.grantAppAccess);
 
-// Add brand access (when user already has dashboard access)
+// Add brand access (when user already has app access)
 router.post('/api/admin/users/:userId/apps/:appId/brands', authController.validateAdminFromCentralAuth, brandAccessController.addBrandAccess);
 
 // Edit brand platforms for user
@@ -74,8 +74,7 @@ router.put('/api/admin/users/:userId/apps/:appId/brands/:brandId/platforms', aut
 // Remove brand access for user (HARD DELETE)
 router.delete('/api/admin/users/:userId/apps/:appId/brands/:brandId', authController.validateAdminFromCentralAuth, brandAccessController.removeBrandAccess);
 
-// Remove entire dashboard access (HARD DELETE all brands/platforms)
-// NEW ENDPOINT
+// Remove entire app access (HARD DELETE all brands/platforms)
 router.delete('/api/admin/users/:userId/apps/:appId', authController.validateAdminFromCentralAuth, brandAccessController.removeAppAccess);
 
 // ==================== BRAND MAPPING ROUTES (NEW) ====================
@@ -111,3 +110,19 @@ router.get('/api/admin/audit-logs/users/:userId', authController.validateAdminFr
 router.get('/api/admin/audit-logs/actions/:action', authController.validateAdminFromCentralAuth, auditController.getAuditLogsByAction);
 
 module.exports = router;
+
+
+/*
+Update user status
+Grant app access
+Add brand access (when user already has app access)
+Edit brand platforms for user
+Remove brand access for user (HARD DELETE)
+Remove entire app access (HARD DELETE all brands/platforms)
+Create a new full brand mapping
+Update an existing full brand mapping
+Delete a full brand mapping (cascades to user table)
+*/
+
+// http://localhost:8000/api/v1/admin/clearAllUsersCache :- redis cache clear for all users if any changes made from brand management side.
+// http://localhost:8000/api/v1/admin/clearSingleUserCache/cbf5feb2-039a-425f-afd6-40f91bdfcf8e :- redis cache clear for specific user(added user_id in the api), if in admin side any changes is done 

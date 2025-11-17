@@ -2,6 +2,7 @@
 const pool = require('../config/database');
 const Joi = require('joi');
 const AuditService = require('../services/auditService');
+const axios = require('axios');
 
 // Helper function to extract IP and User Agent
 const getRequestMetadata = (req) => ({
@@ -9,12 +10,12 @@ const getRequestMetadata = (req) => ({
   userAgent: req.get('user-agent') || null
 });
 
-// Validation schemas
+// Validation schemas - UPDATED to only allow MANAGER and USER
 const addUserSchema = Joi.object({
   full_name: Joi.string().min(2).max(100).required().trim(),
   email: Joi.string().email().required().trim().lowercase(),
   password: Joi.string().min(8).required(),
-  user_type: Joi.string().valid('ADMIN', 'ANALYST', 'MANAGER', 'CLIENT').required(),
+  user_type: Joi.string().valid('MANAGER', 'USER').required(), // Only MANAGER and USER allowed
   organisation: Joi.string().min(2).max(100).required().trim()
 });
 
@@ -22,17 +23,43 @@ const updateUserStatusSchema = Joi.object({
   status: Joi.string().valid('ACTIVE', 'INACTIVE').required()
 });
 
+// --- UPDATED HELPER ---
+// Helper function to clear Redis cache in Central Auth
+const clearRedisCache = async (token, userId = null) => {
+  try {
+    const authUrl = process.env.AUTH_URL || 'http://localhost:8000';
+    
+    // Create headers with the token
+    const config = {
+      headers: { Authorization: token }
+    };
+
+    if (userId) {
+      // Clear specific user cache
+      // --- FIX: Use .post AND pass the auth header ---
+      await axios.post(`${authUrl}/api/v1/admin/clearSingleUserCache/${userId}`, null, config);
+      console.log(`Redis cache cleared for user: ${userId}`);
+    } else {
+      // Clear all users cache
+      // --- FIX: Pass the auth header ---
+      await axios.get(`${authUrl}/api/v1/admin/clearAllUsersCache`, config);
+      console.log('Redis cache cleared for all users');
+    }
+  } catch (error) {
+    // Now we will see the real error if it's not 401
+    console.error('Error clearing Redis cache:', error.response ? error.response.data : error.message);
+  }
+};
+
 // GET /api/admin/users - Get all users with search and pagination
 const getAllUsers = async (req, res) => {
   try {
     const { search = '', page = 1, limit = 10 } = req.query;
 
-    // Convert to numbers
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
 
-    // Base query
     let query = `
       SELECT 
         user_id,
@@ -50,7 +77,6 @@ const getAllUsers = async (req, res) => {
     const queryParams = [];
     const countParams = [];
 
-    // Add search filter if provided
     if (search && search.trim().length > 0) {
       query += ' WHERE full_name ILIKE $1';
       countQuery += ' WHERE full_name ILIKE $1';
@@ -58,14 +84,12 @@ const getAllUsers = async (req, res) => {
       countParams.push(`%${search.trim()}%`);
     }
 
-    // Add ordering and pagination
     query += ' ORDER BY created_time_stamp DESC';
     const paramOffset = queryParams.length + 1;
     const paramLimit = queryParams.length + 2;
     query += ` LIMIT $${paramLimit} OFFSET $${paramOffset}`;
     queryParams.push(offset, limitNum);
 
-    // Execute queries
     const [usersResult, countResult] = await Promise.all([
       pool.query(query, queryParams),
       pool.query(countQuery, countParams)
@@ -99,8 +123,9 @@ const addUser = async (req, res) => {
   try {
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
+    const token = req.headers.authorization; // <-- Get the token
 
-    // Validate request body
+    // Validate request body - now only allows MANAGER and USER
     const { error, value } = addUserSchema.validate(req.body);
     if (error) {
       await AuditService.logFailure({
@@ -178,7 +203,7 @@ const addUser = async (req, res) => {
       last_name,
       full_name,
       email,
-      password, // Storing as plain text for now (as per your requirement)
+      password,
       user_type,
       organisation,
       adminUserId
@@ -188,13 +213,17 @@ const addUser = async (req, res) => {
 
     const newUser = result.rows[0];
 
+    // Clear Redis cache for the new user
+    // --- Pass the token ---
+    await clearRedisCache(token, newUser.user_id);
+
     // Log success
     await AuditService.logSuccess({
       userId: newUser.user_id,
       appId: null,
       action: 'ADD_USER',
-      actionDetails: `Created new user: ${full_name} (${email})`,
-      requestBody: { ...req.body, password: '***' }, // Don't log password
+      actionDetails: `Created new user: ${full_name} (${email}) with type ${user_type}`,
+      requestBody: { ...req.body, password: '***' },
       performedBy: adminUserId,
       ipAddress,
       userAgent
@@ -242,8 +271,8 @@ const updateUserStatus = async (req, res) => {
     const { userId } = req.params;
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
+    const token = req.headers.authorization; // <-- Get the token
 
-    // Validate request body
     const { error, value } = updateUserStatusSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
@@ -257,7 +286,6 @@ const updateUserStatus = async (req, res) => {
 
     await client.query('BEGIN');
 
-    // Check if user exists
     const userCheck = await client.query(
       'SELECT user_id, full_name, email, status FROM v3_t_master_users WHERE user_id = $1',
       [userId]
@@ -273,7 +301,6 @@ const updateUserStatus = async (req, res) => {
 
     const currentUser = userCheck.rows[0];
 
-    // Update status
     const updateQuery = `
       UPDATE v3_t_master_users 
       SET status = $1,
@@ -287,7 +314,10 @@ const updateUserStatus = async (req, res) => {
 
     await client.query('COMMIT');
 
-    // Log success
+    // Clear Redis cache for this user
+    // --- Pass the token ---
+    await clearRedisCache(token, userId);
+
     await AuditService.logSuccess({
       userId: userId,
       appId: null,

@@ -1,6 +1,7 @@
 // controllers/brandAccessController.js
 const pool = require('../config/database');
 const AuditService = require('../services/auditService');
+const axios = require('axios');
 
 // Helper function to extract IP and User Agent
 const getRequestMetadata = (req) => ({
@@ -8,8 +9,23 @@ const getRequestMetadata = (req) => ({
   userAgent: req.get('user-agent') || null
 });
 
+// --- UPDATED HELPER ---
+// Helper function to clear Redis cache in Central Auth
+const clearRedisCache = async (token, userId) => {
+  try {
+    const authUrl = process.env.AUTH_URL || 'http://localhost:8000';
+    // --- FIX: Pass auth header ---
+    const result = await axios.post(`${authUrl}/api/v1/admin/clearSingleUserCache/${userId}`, null, {
+      headers: { Authorization: token }
+    });
+    console.log(`Redis cache cleared for user: ${userId}`);
+  } catch (error) {
+    console.error('Error clearing Redis cache:', error.response ? error.response.data : error.message);
+    // Don't throw - cache clear failure shouldn't block the main operation
+  }
+};
+
 // POST /api/admin/users/:userId/apps/:appId/grant-access
-// Grant access when user doesn't have app access
 const grantAppAccess = async (req, res) => {
   const client = await pool.connect();
   
@@ -18,8 +34,8 @@ const grantAppAccess = async (req, res) => {
     const { brandId, platformIds } = req.body;
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
+    const token = req.headers.authorization; // <-- Get the token
 
-    // Validation
     if (!brandId || !platformIds || !Array.isArray(platformIds) || platformIds.length === 0) {
       await AuditService.logFailure({
         userId,
@@ -41,7 +57,6 @@ const grantAppAccess = async (req, res) => {
 
     await client.query('BEGIN');
 
-    // Verify user exists
     const userCheck = await client.query(
       'SELECT user_id, first_name, last_name FROM v3_t_master_users WHERE user_id = $1',
       [userId]
@@ -54,7 +69,6 @@ const grantAppAccess = async (req, res) => {
       });
     }
 
-    // Verify app exists
     const appCheck = await client.query(
       'SELECT app_id, app_name as dashboard_type FROM public.v3_t_master_apps WHERE app_id = $1',
       [appId]
@@ -67,7 +81,6 @@ const grantAppAccess = async (req, res) => {
       });
     }
 
-    // Verify brand exists
     const brandCheck = await client.query(
       'SELECT infytrix_brand_id, brand_name FROM public.neo_brand_master WHERE infytrix_brand_id = $1',
       [brandId]
@@ -80,7 +93,6 @@ const grantAppAccess = async (req, res) => {
       });
     }
 
-    // Check if brand-platforms are valid FOR THIS APP
     const platformCheck = await client.query(
       `SELECT platform_id 
        FROM public.v3_t_app_brand_platform_mapping 
@@ -103,7 +115,6 @@ const grantAppAccess = async (req, res) => {
     const now = new Date();
 
     for (const platformId of platformIds) {
-      // Check if already exists
       const existingCheck = await client.query(
         `SELECT v3_t_user_app_brand_platform_mapping_id 
          FROM public.v3_t_user_app_brand_platform_mapping 
@@ -119,7 +130,6 @@ const grantAppAccess = async (req, res) => {
         continue;
       }
 
-      // Create new record
       const insertQuery = `
         INSERT INTO public.v3_t_user_app_brand_platform_mapping 
         (user_id, brand_id, app_id, platform_id, created_by, created_time_stamp, status)
@@ -138,6 +148,10 @@ const grantAppAccess = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Clear Redis cache for this user
+    // --- Pass the token ---
+    await clearRedisCache(token, userId);
 
     await AuditService.logSuccess({
       userId,
@@ -194,7 +208,6 @@ const grantAppAccess = async (req, res) => {
 };
 
 // POST /api/admin/users/:userId/apps/:appId/brands
-// Add brand access (when user already has app access)
 const addBrandAccess = async (req, res) => {
   const client = await pool.connect();
   
@@ -203,6 +216,7 @@ const addBrandAccess = async (req, res) => {
     const { brandId, platformIds } = req.body;
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
+    const token = req.headers.authorization; // <-- Get the token
 
     if (!brandId || !platformIds || !Array.isArray(platformIds) || platformIds.length === 0) {
       await AuditService.logFailure({
@@ -237,7 +251,6 @@ const addBrandAccess = async (req, res) => {
       });
     }
 
-    // Check if brand-platforms are valid FOR THIS APP
     const platformCheck = await client.query(
       `SELECT platform_id 
        FROM public.v3_t_app_brand_platform_mapping 
@@ -293,6 +306,10 @@ const addBrandAccess = async (req, res) => {
     }
 
     await client.query('COMMIT');
+    // Clear Redis cache for this user
+    // --- Pass the token ---
+    await clearRedisCache(token, userId);
+
 
     await AuditService.logSuccess({
       userId,
@@ -349,7 +366,6 @@ const addBrandAccess = async (req, res) => {
 };
 
 // PUT /api/admin/users/:userId/apps/:appId/brands/:brandId/platforms
-// Edit platforms for a brand
 const editBrandPlatforms = async (req, res) => {
   const client = await pool.connect();
   
@@ -358,6 +374,7 @@ const editBrandPlatforms = async (req, res) => {
     const { platformIds } = req.body;
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
+    const token = req.headers.authorization; // <-- Get the token
 
     if (!platformIds || !Array.isArray(platformIds)) {
       await AuditService.logFailure({
@@ -414,7 +431,6 @@ const editBrandPlatforms = async (req, res) => {
     }
 
     for (const platformId of platformsToAdd) {
-      // Validate platform for this brand AND APP
       const validPlatform = await client.query(
         `SELECT platform_id 
          FROM public.v3_t_app_brand_platform_mapping 
@@ -444,6 +460,10 @@ const editBrandPlatforms = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Clear Redis cache for this user
+    // --- Pass the token ---
+    await clearRedisCache(token, userId);
 
     await AuditService.logSuccess({
       userId,
@@ -500,7 +520,6 @@ const editBrandPlatforms = async (req, res) => {
 };
 
 // DELETE /api/admin/users/:userId/apps/:appId/brands/:brandId
-// Remove brand
 const removeBrandAccess = async (req, res) => {
   const client = await pool.connect();
   
@@ -508,6 +527,7 @@ const removeBrandAccess = async (req, res) => {
     const { userId, appId, brandId } = req.params;
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
+    const token = req.headers.authorization; // <-- Get the token
 
     await client.query('BEGIN');
 
@@ -539,6 +559,10 @@ const removeBrandAccess = async (req, res) => {
     const result = await client.query(deleteQuery, [userId, appId, brandId]);
 
     await client.query('COMMIT');
+
+    // Clear Redis cache for this user
+    // --- Pass the token ---
+    await clearRedisCache(token, userId);
 
     await AuditService.logSuccess({
       userId,
@@ -594,7 +618,6 @@ const removeBrandAccess = async (req, res) => {
 };
 
 // DELETE /api/admin/users/:userId/apps/:appId
-// Remove entire app access
 const removeAppAccess = async (req, res) => {
   const client = await pool.connect();
   
@@ -602,6 +625,7 @@ const removeAppAccess = async (req, res) => {
     const { userId, appId } = req.params;
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
+    const token = req.headers.authorization; // <-- Get the token
 
     await client.query('BEGIN');
 
@@ -630,6 +654,10 @@ const removeAppAccess = async (req, res) => {
     const result = await client.query(deleteQuery, [userId, appId]);
 
     await client.query('COMMIT');
+
+    // Clear Redis cache for this user
+    // --- Pass the token ---
+    await clearRedisCache(token, userId);
 
     await AuditService.logSuccess({
       userId,
