@@ -23,7 +23,7 @@ exports.validateAdminFromCentralAuth = async (req, res, next) => {
         });
       }
       
-      //console.log(data);
+      console.log(data);
   
       req.user = data?.data;
       next()
