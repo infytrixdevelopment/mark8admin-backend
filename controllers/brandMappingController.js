@@ -139,7 +139,8 @@ const getAllPlatforms = async (req, res) => {
     const query = `
       SELECT platform_id, platform as platform_name, platform_logo_url 
       FROM public.v3_t_master_platforms 
-      WHERE status = 'ACTIVE' 
+      WHERE status = 'ACTIVE'
+      AND country = 'INDIA' 
       ORDER BY platform;
     `;
     const result = await pool.query(query);
