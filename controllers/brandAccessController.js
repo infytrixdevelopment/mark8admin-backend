@@ -15,7 +15,7 @@ const clearRedisCache = async (token, userId) => {
   try {
     const authUrl = process.env.AUTH_URL || 'http://localhost:8000';
     // --- FIX: Pass auth header ---
-    const result = await axios.post(`${authUrl}/api/v1/admin/clearSingleUserCache/${userId}`, null, {
+    const result = await axios.get(`${authUrl}/api/v1/admin/clearSingleUserCache/${userId}`, {
       headers: { Authorization: token }
     });
     console.log(`Redis cache cleared for user: ${userId}`);
