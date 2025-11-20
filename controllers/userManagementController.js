@@ -3,7 +3,7 @@ const pool = require('../config/database');
 const Joi = require('joi');
 const AuditService = require('../services/auditService');
 const axios = require('axios');
-
+const { hashPassword } = require("./../utils/auth/password")
 // Helper function to extract IP and User Agent
 const getRequestMetadata = (req) => ({
   ipAddress: req.ip || req.connection.remoteAddress || null,
@@ -28,7 +28,7 @@ const updateUserStatusSchema = Joi.object({
 const clearRedisCache = async (token, userId = null) => {
   try {
     const authUrl = process.env.AUTH_URL || 'http://localhost:8000';
-    
+
     if (userId) {
       await axios.get(`${authUrl}/api/v1/admin/clearSingleUserCache/${userId}`, {
         headers: { Authorization: token }
@@ -113,8 +113,8 @@ const getAllUsers = async (req, res) => {
 
 // POST /api/admin/users - Add new user
 const addUser = async (req, res) => {
-  const client = await pool.connect(); 
-  
+  const client = await pool.connect();
+
   try {
     const adminUserId = req.user.user_id;
     const { ipAddress, userAgent } = getRequestMetadata(req);
@@ -153,7 +153,7 @@ const addUser = async (req, res) => {
 
     if (existingUser.rowCount > 0) {
       await client.query('ROLLBACK');
-      
+
       await AuditService.logFailure({
         userId: null,
         appId: null,
@@ -175,6 +175,16 @@ const addUser = async (req, res) => {
     const nameParts = full_name.trim().split(' ');
     const first_name = nameParts[0];
     const last_name = nameParts.slice(1).join(' ') || null;
+
+
+    const hashResult = await hashPassword(password);
+    if (!hashResult || !hashResult.status) {
+      return sendFailResponse(res, "Unable to hash password.", 500);
+    }
+
+
+    const newHashedPassword = hashResult.hashedPassword;
+
 
     // Insert new user
     const insertQuery = `
@@ -198,7 +208,7 @@ const addUser = async (req, res) => {
       last_name,
       full_name,
       email,
-      password,
+      newHashedPassword,
       user_type,
       organisation,
       adminUserId
@@ -261,7 +271,7 @@ const addUser = async (req, res) => {
 // PUT /api/admin/users/:userId/status - Update user status
 const updateUserStatus = async (req, res) => {
   const client = await pool.connect();
-  
+
   try {
     const { userId } = req.params;
     const adminUserId = req.user.user_id;
