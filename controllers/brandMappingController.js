@@ -282,17 +282,24 @@ const createBrandMapping = async (req, res) => {
         ]);
       }
     }
-    
+    const nameQuery = `
+      SELECT 
+        (SELECT app_name FROM public.v3_t_master_apps WHERE app_id = $1) as app_name,
+        (SELECT brand_name FROM public.neo_brand_master WHERE infytrix_brand_id = $2) as brand_name
+    `;
+    const nameResult = await client.query(nameQuery, [appId, brandId]);
+    const { app_name, brand_name } = nameResult.rows[0] || { app_name: 'Unknown App', brand_name: 'Unknown Brand' };
+
     await client.query('COMMIT');
     // Clear Redis cache for ALL users (brand mapping affects all users)
-    // --- Pass the token ---
     await clearAllUsersCache(token);
     // Audit log
-    await AuditService.logSuccess({
+await AuditService.logSuccess({
+      userId: adminUserId, 
       appId: appId,
       brandId: brandId,
       action: 'CREATE_BRAND_MAPPING',
-      actionDetails: `Created mapping for brandId ${brandId} with ${platformIds.length} platforms and ${dashboards.length} dashboards.`,
+      actionDetails: `Created mapping in ${app_name} for ${brand_name} with ${platformIds.length} platforms and ${dashboards ? dashboards.length : 0} dashboards.`,
       requestBody: req.body,
       performedBy: adminUserId,
       ipAddress,
@@ -409,17 +416,24 @@ const updateBrandMapping = async (req, res) => {
         [appId, brandId, platformsToRemove]
       );
     }
-    
+    const nameQuery = `
+      SELECT 
+        (SELECT app_name FROM public.v3_t_master_apps WHERE app_id = $1) as app_name,
+        (SELECT brand_name FROM public.neo_brand_master WHERE infytrix_brand_id = $2) as brand_name
+    `;
+    const nameResult = await client.query(nameQuery, [appId, brandId]);
+    const { app_name, brand_name } = nameResult.rows[0] || { app_name: 'Unknown App', brand_name: 'Unknown Brand' };
     await client.query('COMMIT');
     // Clear Redis cache for ALL users (brand mapping affects all users)
     // --- Pass the token ---
     await clearAllUsersCache(token);
     // Audit log
-    await AuditService.logSuccess({
+await AuditService.logSuccess({
+      userId: adminUserId,
       appId: appId,
       brandId: brandId,
       action: 'UPDATE_BRAND_MAPPING',
-      actionDetails: `Updated mapping for brandId ${brandId}. Added: ${platformsToAdd.length}, Removed: ${platformsToRemove.length}. Synced ${dashboards.length} dashboards.`,
+      actionDetails: `Updated mapping in ${app_name} for ${brand_name}. Added: ${platformsToAdd.length}, Removed: ${platformsToRemove.length}. Synced ${dashboards ? dashboards.length : 0} dashboards.`,
       requestBody: req.body,
       performedBy: adminUserId,
       ipAddress,
@@ -472,17 +486,24 @@ const deleteBrandMapping = async (req, res) => {
       `DELETE FROM public.v3_t_user_app_brand_platform_mapping WHERE app_id = $1 AND brand_id = $2`,
       [appId, brandId]
     );
-
+const nameQuery = `
+      SELECT 
+        (SELECT app_name FROM public.v3_t_master_apps WHERE app_id = $1) as app_name,
+        (SELECT brand_name FROM public.neo_brand_master WHERE infytrix_brand_id = $2) as brand_name
+    `;
+    const nameResult = await client.query(nameQuery, [appId, brandId]);
+    const { app_name, brand_name } = nameResult.rows[0] || { app_name: 'Unknown App', brand_name: 'Unknown Brand' };
     await client.query('COMMIT');
     // Clear Redis cache for ALL users (brand mapping affects all users)
     // --- Pass the token ---
     await clearAllUsersCache(token);
     // Audit log
-    await AuditService.logSuccess({
+await AuditService.logSuccess({
+      userId: adminUserId, 
       appId: appId,
       brandId: brandId,
       action: 'DELETE_BRAND_MAPPING',
-      actionDetails: `Deleted all mappings for brandId ${brandId}. Removed ${res1.rowCount} platforms, ${res2.rowCount} dashboards, and ${res3.rowCount} user grants.`,
+      actionDetails: `Deleted all mappings in ${app_name} for ${brand_name}. Removed ${res1.rowCount} platforms, ${res2.rowCount} dashboards, and ${res3.rowCount} user grants.`,
       requestBody: { appId, brandId },
       performedBy: adminUserId,
       ipAddress,
